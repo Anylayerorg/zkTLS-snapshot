@@ -1,0 +1,165 @@
+/**
+ * Real TLSNotary Integration Example
+ * 
+ * This file shows how to replace the simulation with real TLSNotary
+ * Copy this to tlsnotary.ts and uncomment when tlsn-js is installed
+ */
+
+// Uncomment when tlsn-js is installed:
+// import { Prover, Notary } from 'tlsn-js';
+
+import { ProviderId } from '../types';
+import { getNotaryConfig, validateNotaryConfig } from '../config/notary';
+import type { TLSNotaryProof, TLSSessionData, HTTPResponseData } from './tlsnotary';
+
+/**
+ * Load TLSNotary WASM module
+ */
+let wasmLoaded = false;
+
+async function loadTLSNotaryWASM() {
+  if (wasmLoaded) return;
+  
+  try {
+    // Load WASM module from tlsn-js
+    // Uncomment when tlsn-js is installed:
+    // const wasmModule = await import('tlsn-js/wasm');
+    // await wasmModule.default();
+    
+    wasmLoaded = true;
+    console.log('[TLSNotary] WASM module loaded');
+  } catch (error) {
+    console.error('[TLSNotary] Failed to load WASM:', error);
+    throw new Error('TLSNotary WASM module not available');
+  }
+}
+
+/**
+ * Real TLSNotary proof capture implementation
+ * 
+ * Replace simulateTLSProof() in tlsnotary.ts with this
+ */
+export async function captureTLSProofReal(
+  domain: string,
+  url: string,
+  method: string,
+  headers: Record<string, string>,
+  body?: string
+): Promise<TLSNotaryProof> {
+  // Ensure WASM is loaded
+  await loadTLSNotaryWASM();
+  
+  // Get notary configuration
+  const notaryConfig = getNotaryConfig();
+  if (!validateNotaryConfig(notaryConfig)) {
+    throw new Error('Invalid notary configuration');
+  }
+  
+  console.log(`[TLSNotary] Connecting to notary at ${notaryConfig.url}`);
+  
+  try {
+    // Uncomment when tlsn-js is installed:
+    /*
+    // Initialize Prover
+    const prover = new Prover();
+    
+    // Connect to notary server
+    const notary = await Notary.connect(notaryConfig.url, {
+      timeout: notaryConfig.timeout,
+    });
+    
+    // Start TLS session with notary
+    const session = await prover.newSession({
+      serverName: domain,
+      notary: notary,
+    });
+    
+    // Parse URL
+    const urlObj = new URL(url);
+    const path = urlObj.pathname + urlObj.search;
+    
+    // Make HTTP request through TLSNotary
+    const response = await session.request({
+      method: method,
+      path: path,
+      headers: headers,
+      body: body,
+    });
+    
+    // Generate proof
+    const proof = await prover.prove({
+      session: session,
+      response: response,
+    });
+    
+    // Extract certificate chain
+    const certificateChain = proof.certificateChain.map((cert: any) => ({
+      subject: cert.subject,
+      issuer: cert.issuer,
+      validFrom: new Date(cert.notBefore),
+      validTo: new Date(cert.notAfter),
+      subjectAlternativeNames: cert.subjectAlternativeNames || [],
+      publicKeyHash: proof.certPubKeyHash,
+    }));
+    
+    // Build TLSNotaryProof structure
+    return {
+      session: {
+        domain: domain,
+        certificateChain: certificateChain,
+        handshakeHash: proof.handshakeHash,
+        sessionId: proof.sessionId,
+        cipherSuite: proof.cipherSuite || 'TLS_AES_256_GCM_SHA384',
+        timestamp: Date.now(),
+      },
+      response: {
+        statusCode: response.status,
+        headers: response.headers as Record<string, string>,
+        body: response.body,
+        bodyHash: proof.responseHash,
+      },
+      snarkProof: {
+        pi_a: proof.snarkProof.pi_a,
+        pi_b: proof.snarkProof.pi_b,
+        pi_c: proof.snarkProof.pi_c,
+        protocol: 'groth16',
+        curve: 'bn128',
+      },
+      publicInputs: proof.publicInputs,
+      commitment: proof.commitment,
+    };
+    */
+    
+    // Placeholder until tlsn-js is installed
+    throw new Error('TLSNotary library not installed. Run: npm install tlsn-js');
+    
+  } catch (error) {
+    console.error('[TLSNotary] Proof generation failed:', error);
+    
+    // Handle specific TLSNotary errors
+    if (error instanceof Error) {
+      if (error.message.includes('notary connection')) {
+        throw new Error('Failed to connect to notary server. Check network and notary URL.');
+      }
+      if (error.message.includes('TLS handshake')) {
+        throw new Error('TLS handshake failed. Provider may be blocking TLSNotary.');
+      }
+      if (error.message.includes('proof generation')) {
+        throw new Error('Proof generation failed. Check circuit and inputs.');
+      }
+    }
+    
+    throw error;
+  }
+}
+
+/**
+ * Usage in tlsnotary.ts:
+ * 
+ * Replace:
+ *   const proof = await this.simulateTLSProof(domain, fullUrl, method, headers, body);
+ * 
+ * With:
+ *   const proof = await captureTLSProofReal(domain, fullUrl, method, headers, body);
+ */
+
