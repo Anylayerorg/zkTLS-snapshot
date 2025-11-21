@@ -1,0 +1,84 @@
+{
+  "manifest_version": 3,
+  "name": "AnyLayer zkTLS Snapshot",
+  "version": "1.0.0",
+  "description": "Generate privacy-preserving zkTLS snapshots from Web2 providers",
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://twitter.com/*",
+    "https://x.com/*",
+    "https://www.binance.com/*",
+    "https://www.okx.com/*",
+    "https://www.kucoin.com/*",
+    "https://www.coinbase.com/*",
+    "https://www.linkedin.com/*",
+    "https://www.fiverr.com/*",
+    "https://www.upwork.com/*",
+    "https://www.youtube.com/*",
+    "https://www.tiktok.com/*",
+    "https://www.twitch.tv/*",
+    "https://us-central1-zksscore.cloudfunctions.net/*"
+  ],
+  "background": {
+    "service_worker": "background/background.js"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "options_page": "options/options.html",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://twitter.com/*",
+        "https://x.com/*",
+        "https://www.binance.com/*",
+        "https://www.okx.com/*",
+        "https://www.kucoin.com/*",
+        "https://www.coinbase.com/*",
+        "https://www.linkedin.com/*",
+        "https://www.fiverr.com/*",
+        "https://www.upwork.com/*",
+        "https://www.youtube.com/*",
+        "https://www.tiktok.com/*",
+        "https://www.twitch.tv/*"
+      ],
+      "js": ["content/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["content/injected.js"],
+      "matches": [
+        "https://twitter.com/*",
+        "https://x.com/*",
+        "https://www.binance.com/*",
+        "https://www.okx.com/*",
+        "https://www.kucoin.com/*",
+        "https://www.coinbase.com/*",
+        "https://www.linkedin.com/*",
+        "https://www.fiverr.com/*",
+        "https://www.upwork.com/*",
+        "https://www.youtube.com/*",
+        "https://www.tiktok.com/*",
+        "https://www.twitch.tv/*"
+      ]
+    }
+  ]
+}
+
