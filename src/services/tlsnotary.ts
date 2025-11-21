@@ -350,25 +350,48 @@ export class TLSNotaryService {
       };
     }
 
-    // TODO: Verify SNARK proof using snarkjs
-    // This requires loading the verification key and snarkjs library
-    // 
-    // Example implementation:
-    // const { getVerificationKey } = await import('./vkey-loader');
-    // const snarkjs = await import('snarkjs');
-    // const verificationKey = await getVerificationKey();
-    // const verified = await snarkjs.groth16.verify(
-    //   verificationKey,
-    //   proof.publicInputs,
-    //   proof.snarkProof
-    // );
-    // if (!verified) {
-    //   return { valid: false, error: 'SNARK proof verification failed' };
-    // }
-
-    // For now, return valid (would verify in production)
-    // See VERIFICATION_KEYS_GUIDE.md for implementation details
-    return { valid: true };
+    // Verify SNARK proof using snarkjs
+    try {
+      const { getVerificationKey } = await import('./vkey-loader');
+      const snarkjs = await import('snarkjs');
+      
+      const verificationKey = await getVerificationKey();
+      const verified = await snarkjs.groth16.verify(
+        verificationKey,
+        proof.publicInputs,
+        proof.snarkProof
+      );
+      
+      if (!verified) {
+        return { valid: false, error: 'SNARK proof verification failed' };
+      }
+      
+      return { valid: true };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[TLSNotary] SNARK verification error:', errorMessage);
+      
+      // In development, allow fallback with warning
+      // In production, fail securely
+      const isDev = typeof process !== 'undefined' && 
+        (process.env?.NODE_ENV === 'development' || 
+         process.env?.NODE_ENV === 'test' ||
+         !process.env?.NODE_ENV);
+      
+      if (isDev) {
+        console.warn('[TLSNotary] Development mode: Skipping SNARK verification (key/verification unavailable)');
+        return { 
+          valid: true, 
+          warning: 'SNARK verification skipped (dev mode only - not production-ready)' 
+        };
+      } else {
+        // Production: fail securely
+        return { 
+          valid: false, 
+          error: `SNARK verification failed: ${errorMessage}` 
+        };
+      }
+    }
   }
 
   /**

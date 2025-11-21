@@ -83,22 +83,77 @@ async function loadFromBundle(): Promise<VerificationKey> {
 }
 
 /**
+ * Check if verification key is a placeholder (development only)
+ */
+function checkIfPlaceholderKey(vkey: any): boolean {
+  if (!vkey || typeof vkey !== 'object') {
+    return false;
+  }
+  
+  // Check for placeholder indicators:
+  // 1. IC array contains mostly zeros (placeholder pattern)
+  // 2. vk_alpha_1 contains placeholder values
+  if (Array.isArray(vkey.IC)) {
+    const zeroRows = vkey.IC.filter((row: any) => 
+      Array.isArray(row) && 
+      row.length >= 2 && 
+      (row[0] === '0' || row[0] === 0) && 
+      (row[1] === '0' || row[1] === 0)
+    );
+    // If more than half the IC rows are zeros, likely a placeholder
+    if (zeroRows.length > vkey.IC.length / 2) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
  * Validate verification key structure
  */
 function validateVerificationKey(vkey: any): vkey is VerificationKey {
-  return (
-    vkey &&
-    typeof vkey === 'object' &&
-    vkey.protocol === 'groth16' &&
-    vkey.curve === 'bn128' &&
-    typeof vkey.nPublic === 'number' &&
-    Array.isArray(vkey.vk_alpha_1) &&
-    Array.isArray(vkey.vk_beta_2) &&
-    Array.isArray(vkey.vk_gamma_2) &&
-    Array.isArray(vkey.vk_delta_2) &&
-    Array.isArray(vkey.vk_alphabeta_12) &&
-    Array.isArray(vkey.IC)
-  );
+  if (!vkey || typeof vkey !== 'object') {
+    return false;
+  }
+  
+  // Check protocol and curve
+  if (vkey.protocol !== 'groth16' || vkey.curve !== 'bn128') {
+    return false;
+  }
+  
+  // Check nPublic is a number
+  if (typeof vkey.nPublic !== 'number') {
+    return false;
+  }
+  
+  // Check all required arrays exist and have correct structure
+  const requiredArrays = [
+    'vk_alpha_1',
+    'vk_beta_2',
+    'vk_gamma_2',
+    'vk_delta_2',
+    'vk_alphabeta_12',
+    'IC'
+  ];
+  
+  for (const key of requiredArrays) {
+    if (!Array.isArray(vkey[key])) {
+      return false;
+    }
+  }
+  
+  // Check for placeholder values (development only)
+  // Placeholder keys will have "0" or "1" strings instead of proper field elements
+  const hasPlaceholderValues = 
+    vkey.vk_alpha_1.some((v: any) => v === '0' || v === 'placeholder') ||
+    vkey.IC.some((row: any) => Array.isArray(row) && row.some((v: any) => v === '0' || v === 'placeholder'));
+  
+  if (hasPlaceholderValues) {
+    console.warn('[VKeyLoader] Warning: Verification key contains placeholder values - not suitable for production');
+  }
+  
+  return true;
 }
 
 /**
@@ -121,6 +176,20 @@ export async function getVerificationKey(): Promise<VerificationKey> {
     const vkeyUrl = getVerificationKeyUrl();
     console.log(`[VKeyLoader] Loading verification key from: ${vkeyUrl}`);
     cachedVkey = await loadFromCDN(vkeyUrl);
+    
+    // Check if placeholder key
+    const isPlaceholder = checkIfPlaceholderKey(cachedVkey);
+    if (isPlaceholder) {
+      const isDev = typeof process !== 'undefined' && 
+        (process.env?.NODE_ENV === 'development' || 
+         process.env?.NODE_ENV === 'test' ||
+         !process.env?.NODE_ENV);
+      if (!isDev) {
+        throw new Error('Placeholder verification key detected in production - replace with real key');
+      }
+      console.warn('[VKeyLoader] Placeholder verification key loaded from CDN - dev mode only');
+    }
+    
     console.log('[VKeyLoader] Verification key loaded from CDN');
     return cachedVkey;
   } catch (cdnError) {
@@ -129,6 +198,20 @@ export async function getVerificationKey(): Promise<VerificationKey> {
     // Fallback to bundled version
     try {
       cachedVkey = await loadFromBundle();
+      
+      // Check if placeholder key
+      const isPlaceholder = checkIfPlaceholderKey(cachedVkey);
+      if (isPlaceholder) {
+        const isDev = typeof process !== 'undefined' && 
+          (process.env?.NODE_ENV === 'development' || 
+           process.env?.NODE_ENV === 'test' ||
+           !process.env?.NODE_ENV);
+        if (!isDev) {
+          throw new Error('Placeholder verification key detected in production - replace with real key');
+        }
+        console.warn('[VKeyLoader] Placeholder verification key loaded from bundle - dev mode only');
+      }
+      
       console.log('[VKeyLoader] Verification key loaded from bundle');
       return cachedVkey;
     } catch (bundleError) {
