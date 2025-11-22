@@ -65,7 +65,7 @@
       "matches": [
         "https://app.anylayer.org/*"
       ],
-      "js": ["content/dashboard-bridge.js"],
+      "js": ["dashboard-bridge/dashboard-bridge.js"],
       "run_at": "document_start"
     }
   ],
