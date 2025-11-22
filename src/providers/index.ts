@@ -15,6 +15,9 @@ import { YouTubeAdapter } from './youtube';
 import { TikTokAdapter } from './tiktok';
 import { TwitchAdapter } from './twitch';
 
+// Export providerRegistry for use in background script
+export { providerRegistry } from './base';
+
 // Register all providers
 export function initializeProviders(): void {
   providerRegistry.register(new TwitterAdapter());

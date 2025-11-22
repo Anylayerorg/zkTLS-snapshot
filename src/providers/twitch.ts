@@ -15,6 +15,10 @@ export class TwitchAdapter extends BaseProviderAdapter {
     return this.defaultExpiryDays * 24 * 60 * 60 * 1000;
   }
 
+  getTLSNotaryEndpoint(): string {
+    return '/helix/users';
+  }
+
   async isLoggedIn(tab: chrome.tabs.Tab): Promise<boolean> {
     if (!tab.id) return false;
     try {
@@ -44,10 +48,14 @@ export class TwitchAdapter extends BaseProviderAdapter {
       
       const partnerStatus = !!document.querySelector('[class*="partner-badge"]');
       
+      // Account age (would need to parse from channel creation date)
+      const accountAgeDays = 0; // Placeholder - would need to extract from channel info
+      
       return {
         subsOrFollowers: followers,
         totalViewsBucket: viewsBucket,
-        partnerStatus
+        partnerStatus,
+        accountAgeDays
       };
     });
     return this.normalizeAttributes(raw);
@@ -57,7 +65,8 @@ export class TwitchAdapter extends BaseProviderAdapter {
     return {
       subsOrFollowers: BigInt(Math.max(0, Math.floor(raw.subsOrFollowers || 0))),
       totalViewsBucket: BigInt(Math.max(0, Math.min(2, Math.floor(raw.totalViewsBucket || 0)))),
-      partnerStatus: Boolean(raw.partnerStatus)
+      partnerStatus: Boolean(raw.partnerStatus),
+      accountAgeDays: BigInt(Math.max(0, Math.floor(raw.accountAgeDays || 0)))
     };
   }
 }

@@ -15,6 +15,10 @@ export class FiverrAdapter extends BaseProviderAdapter {
     return this.defaultExpiryDays * 24 * 60 * 60 * 1000;
   }
 
+  getTLSNotaryEndpoint(): string {
+    return '/users/self';
+  }
+
   async isLoggedIn(tab: chrome.tabs.Tab): Promise<boolean> {
     if (!tab.id) return false;
     try {

@@ -69,6 +69,7 @@ async function loadFromBundle(): Promise<VerificationKey> {
   try {
     // Try to import bundled verification key
     // This will be available if key is bundled with extension
+    // @ts-ignore - JSON import
     const bundledVkey = await import('../assets/vkeys/tlsnotary.vkey.json');
     const vkey = bundledVkey.default || bundledVkey;
     

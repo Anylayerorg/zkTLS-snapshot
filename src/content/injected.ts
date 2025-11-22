@@ -22,7 +22,7 @@ console.log('[zkTLS] Injected script loaded');
   // Override fetch to intercept requests
   window.fetch = async function(...args: Parameters<typeof fetch>) {
     const [input, init] = args;
-    const url = typeof input === 'string' ? input : input.url;
+    const url = typeof input === 'string' ? input : (input instanceof URL ? input.toString() : input.url);
 
     // Check if this is a request we want to capture
     // Send message to content script
@@ -41,7 +41,7 @@ console.log('[zkTLS] Injected script loaded');
 
   // Also intercept XMLHttpRequest if needed
   const originalXHROpen = XMLHttpRequest.prototype.open;
-  XMLHttpRequest.prototype.open = function(method: string, url: string | URL, ...rest: any[]) {
+  XMLHttpRequest.prototype.open = function(method: string, url: string | URL, async: boolean = true, username?: string | null, password?: string | null) {
     // Notify content script
     window.postMessage({
       type: 'ZKTLS_XHR_REQUEST',
@@ -51,7 +51,7 @@ console.log('[zkTLS] Injected script loaded');
       }
     }, window.location.origin);
 
-    return originalXHROpen.apply(this, [method, url, ...rest]);
+    return originalXHROpen.call(this, method, url, async, username, password);
   };
 
   console.log('[zkTLS] Network interception enabled');

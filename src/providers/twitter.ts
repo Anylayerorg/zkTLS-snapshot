@@ -160,4 +160,5 @@ export class TwitterAdapter extends BaseProviderAdapter {
     
     return this.normalizeAttributes(rawAttrs);
   }
+}
 

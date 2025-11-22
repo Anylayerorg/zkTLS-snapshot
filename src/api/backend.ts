@@ -22,6 +22,9 @@ export interface CreateSnapshotRequest {
     sourceCount?: number;
     lastPolicyLabel?: string;
   };
+  // Privacy-preserving: Only send computed scores, not raw metrics
+  computedScore?: number;
+  computedPoints?: number;
 }
 
 export interface CreateSnapshotResponse {

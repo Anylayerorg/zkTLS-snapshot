@@ -15,6 +15,10 @@ export class LinkedInAdapter extends BaseProviderAdapter {
     return this.defaultExpiryDays * 24 * 60 * 60 * 1000;
   }
 
+  getTLSNotaryEndpoint(): string {
+    return '/v2/me';
+  }
+
   async isLoggedIn(tab: chrome.tabs.Tab): Promise<boolean> {
     if (!tab.id) return false;
     try {
@@ -37,10 +41,14 @@ export class LinkedInAdapter extends BaseProviderAdapter {
       const headline = document.querySelector('[class*="headline"]')?.textContent || '';
       const headlineHash = headline.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
       
+      // Account age (would need to parse from profile creation date)
+      const accountAgeDays = 0; // Placeholder - would need to extract from profile
+      
       return {
         connections,
         headlineHash,
-        hasVerifiedEmail: false
+        hasVerifiedEmail: false,
+        accountAgeDays
       };
     });
     return this.normalizeAttributes(raw);
@@ -50,7 +58,8 @@ export class LinkedInAdapter extends BaseProviderAdapter {
     return {
       connections: BigInt(Math.max(0, Math.floor(raw.connections || 0))),
       headlineHash: BigInt(Math.max(0, Math.floor(raw.headlineHash || 0))),
-      hasVerifiedEmail: Boolean(raw.hasVerifiedEmail)
+      hasVerifiedEmail: Boolean(raw.hasVerifiedEmail),
+      accountAgeDays: BigInt(Math.max(0, Math.floor(raw.accountAgeDays || 0)))
     };
   }
 }

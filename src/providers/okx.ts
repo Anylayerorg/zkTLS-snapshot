@@ -15,6 +15,10 @@ export class OKXAdapter extends BaseProviderAdapter {
     return this.defaultExpiryDays * 24 * 60 * 60 * 1000;
   }
 
+  getTLSNotaryEndpoint(): string {
+    return '/api/v5/account/balance';
+  }
+
   async isLoggedIn(tab: chrome.tabs.Tab): Promise<boolean> {
     if (!tab.id) return false;
     try {

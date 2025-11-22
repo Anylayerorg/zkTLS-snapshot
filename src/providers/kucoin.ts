@@ -15,6 +15,10 @@ export class KuCoinAdapter extends BaseProviderAdapter {
     return this.defaultExpiryDays * 24 * 60 * 60 * 1000;
   }
 
+  getTLSNotaryEndpoint(): string {
+    return '/api/v1/accounts';
+  }
+
   async isLoggedIn(tab: chrome.tabs.Tab): Promise<boolean> {
     if (!tab.id) return false;
     try {

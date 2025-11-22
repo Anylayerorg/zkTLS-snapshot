@@ -15,6 +15,11 @@ export class BinanceAdapter extends BaseProviderAdapter {
     return this.snapshotType;
   }
 
+  getTLSNotaryEndpoint(): string {
+    // Binance API endpoint for account info
+    return '/api/v3/account';
+  }
+
   getDefaultExpiry(): number {
     return this.defaultExpiryDays * 24 * 60 * 60 * 1000; // 180 days in ms
   }

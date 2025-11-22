@@ -18,12 +18,40 @@ function Popup() {
     checkCurrentProvider();
     
     // Load user address from storage
-    chrome.storage.local.get('userAddress', (result) => {
-      if (result.userAddress) {
-        setUserAddress(result.userAddress);
-        loadSnapshots(result.userAddress);
+    const loadUserAddress = () => {
+      chrome.storage.local.get('userAddress', (result) => {
+        if (result.userAddress) {
+          setUserAddress(result.userAddress);
+          loadSnapshots(result.userAddress);
+        }
+      });
+    };
+    
+    loadUserAddress();
+    
+    // Listen for storage changes (when wallet connects in dashboard)
+    const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) => {
+      if (areaName === 'local' && changes.userAddress) {
+        const newAddress = changes.userAddress.newValue;
+        if (newAddress) {
+          setUserAddress(newAddress);
+          loadSnapshots(newAddress);
+        } else {
+          setUserAddress(null);
+          setSnapshots([]);
+        }
       }
-    });
+    };
+    
+    chrome.storage.onChanged.addListener(handleStorageChange);
+    
+    // Poll for wallet connection every 2 seconds (fallback)
+    const pollInterval = setInterval(loadUserAddress, 2000);
+    
+    return () => {
+      chrome.storage.onChanged.removeListener(handleStorageChange);
+      clearInterval(pollInterval);
+    };
   }, []);
 
   async function checkCurrentProvider() {

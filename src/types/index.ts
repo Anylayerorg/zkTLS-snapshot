@@ -52,6 +52,7 @@ export interface LinkedInAttributes {
   connections: bigint;
   headlineHash: bigint;
   hasVerifiedEmail: boolean;
+  accountAgeDays: bigint;
 }
 
 export interface FreelanceAttributes {
@@ -64,6 +65,7 @@ export interface CreatorAttributes {
   subsOrFollowers: bigint;
   totalViewsBucket: bigint;
   partnerStatus: boolean;
+  accountAgeDays: bigint;
 }
 
 export type ProviderAttributes = 
@@ -176,9 +178,9 @@ export interface PolicyParams {
  * ZK Proof structure
  */
 export interface ZKProof {
-  pi_a: [string, string];
-  pi_b: [[string, string], [string, string]];
-  pi_c: [string, string];
+  pi_a: [string, string, string];
+  pi_b: [[string, string], [string, string], [string, string]];
+  pi_c: [string, string, string];
   protocol: string;
   curve: string;
 }

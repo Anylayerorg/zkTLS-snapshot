@@ -7,9 +7,10 @@ import { generateSnapshotId } from '../utils/uuid';
 import { generateCommitment, generateRandomness } from '../crypto/commitment';
 import { storeSnapshot, getEncryptionKey, deriveEncryptionKey, setEncryptionKey } from '../crypto/storage';
 import { createSnapshot } from '../api/backend';
-import { TLSSnapshotSecret } from '../types';
+import { TLSSnapshotSecret, ProviderId } from '../types';
 import { generateZkTLSProof } from '../circuits/zktls';
 import { tlsNotaryService } from '../services/tlsnotary';
+import { computeHumanScoreLocal, ProviderAttributes } from '../services/localScoring';
 
 // Initialize providers on startup
 initializeProviders();
@@ -51,6 +52,21 @@ async function handleMessage(
       case 'CHECK_PROVIDER':
         await handleCheckProvider(message, sendResponse);
         break;
+      case 'START_SNAPSHOT_FROM_OVERLAY':
+        await handleStartSnapshotFromOverlay(message, sendResponse);
+        break;
+      case 'SHOW_PROVIDER_OVERLAY':
+        await handleShowProviderOverlay(message, sendResponse);
+        break;
+      case 'HIDE_PROVIDER_OVERLAY':
+        await handleHideProviderOverlay(message, sendResponse);
+        break;
+      case 'SET_WALLET_ADDRESS':
+        await handleSetWalletAddress(message, sendResponse);
+        break;
+      case 'PING':
+        sendResponse({ success: true, message: 'Extension is ready' });
+        break;
       default:
         sendResponse({ success: false, error: 'Unknown message type' });
     }
@@ -66,6 +82,54 @@ async function handleMessage(
 /**
  * Create snapshot for a provider
  */
+async function handleStartSnapshotFromOverlay(
+  message: { provider: string },
+  sendResponse: (response: any) => void
+) {
+  try {
+    // Get current tab
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.id) {
+      sendResponse({ success: false, error: 'No active tab' });
+      return;
+    }
+
+    // Verify provider matches current tab
+    const url = new URL(tab.url!);
+    const detectedAdapter = providerRegistry.findByHost(url.hostname);
+    
+    if (!detectedAdapter || detectedAdapter.id !== message.provider) {
+      sendResponse({ 
+        success: false, 
+        error: `Provider mismatch. Expected ${message.provider} but current page is ${detectedAdapter?.id || 'unknown'}` 
+      });
+      return;
+    }
+
+    // Get user address from storage
+    const result = await chrome.storage.local.get('userAddress');
+    const userAddress = result.userAddress;
+
+    if (!userAddress) {
+      sendResponse({ 
+        success: false, 
+        error: 'Wallet not connected. Please connect wallet first.' 
+      });
+      return;
+    }
+
+    // Trigger snapshot creation (without signature for now, can be added later)
+    handleCreateSnapshot(
+      { provider: message.provider, userAddress, signature: undefined },
+      sendResponse
+    );
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Background] Error starting snapshot from overlay:', errorMessage);
+    sendResponse({ success: false, error: errorMessage });
+  }
+}
+
 async function handleCreateSnapshot(
   message: { provider: string; userAddress: string; signature?: string },
   sendResponse: (response: any) => void
@@ -164,7 +228,33 @@ async function handleCreateSnapshot(
     // Store encrypted snapshot locally
     await storeSnapshot(snapshotSecret, encryptionKey);
 
-    // Send to backend
+    // Compute human scores locally (privacy-preserving - no raw metrics sent to backend)
+    const localAttributes: ProviderAttributes = {};
+    if (adapter.id === 'twitter') {
+      const twitterAttrs = attrs as any;
+      localAttributes.followers = Number(twitterAttrs.followers || 0);
+      localAttributes.hasBlueCheck = Boolean(twitterAttrs.hasBlueCheck);
+      localAttributes.accountAgeDays = Number(twitterAttrs.accountAgeDays || 0);
+    } else if (['binance', 'coinbase', 'okx', 'kucoin'].includes(adapter.id)) {
+      const exchangeAttrs = attrs as any;
+      localAttributes.kycLevel = Number(exchangeAttrs.kycLevel || 0);
+      localAttributes.accountAgeDays = Number(exchangeAttrs.accountAgeDays || 0);
+    } else if (adapter.id === 'linkedin') {
+      const linkedinAttrs = attrs as any;
+      localAttributes.connections = Number(linkedinAttrs.connections || 0);
+      localAttributes.accountAgeDays = Number(linkedinAttrs.accountAgeDays || 0);
+    } else if (['youtube', 'tiktok', 'twitch'].includes(adapter.id)) {
+      const creatorAttrs = attrs as any;
+      localAttributes.subsOrFollowers = Number(creatorAttrs.subsOrFollowers || 0);
+      localAttributes.totalViewsBucket = Number(creatorAttrs.totalViewsBucket || 0);
+      localAttributes.partnerStatus = Boolean(creatorAttrs.partnerStatus);
+      localAttributes.accountAgeDays = Number(creatorAttrs.accountAgeDays || 0);
+    }
+
+    // Compute scores locally - only send final score/points, not raw metrics
+    const localScoreResult = computeHumanScoreLocal(adapter.id, localAttributes);
+
+    // Send to backend (only computed scores, NOT raw metrics)
     const backendResponse = await createSnapshot(
       {
         userAddress,
@@ -177,6 +267,9 @@ async function handleCreateSnapshot(
         expiresAt: Math.floor(expiresAt / 1000),
         verificationMethod: 'extension_chrome',
         initialProofHash,
+        // Only send computed scores, not raw metrics (privacy-preserving)
+        computedScore: localScoreResult.scoreDelta > 0 ? localScoreResult.scoreDelta : undefined,
+        computedPoints: localScoreResult.pointsDelta > 0 ? localScoreResult.pointsDelta : undefined,
       },
       signature
     );
@@ -247,7 +340,7 @@ async function handleRevokeSnapshot(
   sendResponse: (response: any) => void
 ) {
   try {
-    const { revokeSnapshot, deleteSnapshot } = await import('../api/backend');
+    const { revokeSnapshot } = await import('../api/backend');
     const { getEncryptionKey } = await import('../crypto/storage');
     
     const response = await revokeSnapshot(
@@ -259,7 +352,8 @@ async function handleRevokeSnapshot(
 
     if (response.success) {
       // Delete local snapshot
-      await deleteSnapshot(message.snapshotId);
+      const { deleteSnapshot: deleteLocalSnapshot } = await import('../crypto/storage');
+      await deleteLocalSnapshot(message.snapshotId);
     }
 
     sendResponse(response);
@@ -304,6 +398,119 @@ async function handleCheckProvider(
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
     });
+  }
+}
+
+/**
+ * Show provider overlay on current tab
+ * Called from platform/dashboard when user clicks provider tab
+ */
+async function handleShowProviderOverlay(
+  message: { provider: ProviderId; tabId?: number },
+  sendResponse: (response: any) => void
+) {
+  try {
+    let tab: chrome.tabs.Tab | undefined;
+    
+    if (message.tabId) {
+      // Use provided tab ID
+      tab = await chrome.tabs.get(message.tabId);
+    } else {
+      // Get current active tab
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      tab = activeTab;
+    }
+
+    if (!tab || !tab.id) {
+      sendResponse({ success: false, error: 'No tab found' });
+      return;
+    }
+
+    // Verify provider matches tab URL
+    if (tab.url) {
+      const url = new URL(tab.url);
+      const adapter = providerRegistry.findByHost(url.hostname);
+      
+      if (!adapter || adapter.id !== message.provider) {
+        sendResponse({ 
+          success: false, 
+          error: `Provider ${message.provider} does not match current page (${url.hostname})` 
+        });
+        return;
+      }
+    }
+
+    // Send message to content script to show overlay
+    await chrome.tabs.sendMessage(tab.id, {
+      type: 'SHOW_OVERLAY',
+      provider: message.provider
+    });
+
+    sendResponse({ success: true });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Background] Error showing overlay:', errorMessage);
+    sendResponse({ success: false, error: errorMessage });
+  }
+}
+
+/**
+ * Hide provider overlay on current tab
+ */
+async function handleHideProviderOverlay(
+  message: { tabId?: number },
+  sendResponse: (response: any) => void
+) {
+  try {
+    let tab: chrome.tabs.Tab | undefined;
+    
+    if (message.tabId) {
+      tab = await chrome.tabs.get(message.tabId);
+    } else {
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      tab = activeTab;
+    }
+
+    if (!tab || !tab.id) {
+      sendResponse({ success: false, error: 'No tab found' });
+      return;
+    }
+
+    // Send message to content script to hide overlay
+    await chrome.tabs.sendMessage(tab.id, {
+      type: 'HIDE_OVERLAY'
+    });
+
+    sendResponse({ success: true });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Background] Error hiding overlay:', errorMessage);
+    sendResponse({ success: false, error: errorMessage });
+  }
+}
+
+/**
+ * Set wallet address from dashboard
+ */
+async function handleSetWalletAddress(
+  message: { address: string },
+  sendResponse: (response: any) => void
+) {
+  try {
+    if (!message.address || typeof message.address !== 'string') {
+      sendResponse({ success: false, error: 'Invalid address' });
+      return;
+    }
+
+    // Store wallet address in extension storage
+    await chrome.storage.local.set({ userAddress: message.address.toLowerCase() });
+    
+    console.log('[Background] Wallet address set:', message.address);
+    sendResponse({ success: true, address: message.address });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Background] Error setting wallet address:', errorMessage);
+    sendResponse({ success: false, error: errorMessage });
   }
 }
 
