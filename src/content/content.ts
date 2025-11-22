@@ -55,16 +55,37 @@ function checkPendingProvider() {
   if (!isSupportedProvider()) return;
   
   try {
-    const pendingProvider = localStorage.getItem('zkTLS_pendingProvider');
-    if (pendingProvider) {
-      console.log('[AnyLayer] Pending provider verification detected:', pendingProvider);
-      // Clear the flag
-      localStorage.removeItem('zkTLS_pendingProvider');
-      // Show overlay after a short delay to let page load
-      setTimeout(() => {
-        createProviderOverlay(pendingProvider as any);
-      }, 2000);
-    }
+    // Check chrome.storage instead of localStorage (works across domains)
+    chrome.storage.local.get(['pendingProvider', 'pendingProviderTimestamp'], (result) => {
+      if (chrome.runtime.lastError) {
+        console.warn('[AnyLayer] Failed to check pending provider:', chrome.runtime.lastError);
+        return;
+      }
+      
+      const { pendingProvider, pendingProviderTimestamp } = result;
+      
+      if (pendingProvider) {
+        // Check if timestamp is recent (within last 30 seconds)
+        const now = Date.now();
+        const age = now - (pendingProviderTimestamp || 0);
+        
+        if (age < 30000) { // 30 seconds
+          console.log('[AnyLayer] Pending provider verification detected:', pendingProvider);
+          
+          // Clear the flag
+          chrome.storage.local.remove(['pendingProvider', 'pendingProviderTimestamp']);
+          
+          // Show overlay after a short delay to let page load
+          setTimeout(() => {
+            console.log('[AnyLayer] Showing overlay for:', pendingProvider);
+            createProviderOverlay(pendingProvider as any);
+          }, 2000);
+        } else {
+          console.log('[AnyLayer] Pending provider too old, ignoring');
+          chrome.storage.local.remove(['pendingProvider', 'pendingProviderTimestamp']);
+        }
+      }
+    });
   } catch (error) {
     console.warn('[AnyLayer] Failed to check pending provider:', error);
   }

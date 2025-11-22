@@ -7,8 +7,13 @@ import type { ProviderId } from '../types';
 
 export interface ProviderOverlayConfig {
   guide: string;
-  conditions: string[];
+  conditions: Array<{
+    text: string;
+    link?: string; // Optional clickable link
+  }>;
   providerName: string;
+  requiredPage?: string; // URL or page description user should be on
+  dataVerified: string[]; // What data we'll verify (not collect!)
 }
 
 /**
@@ -17,101 +22,177 @@ export interface ProviderOverlayConfig {
 export const PROVIDER_OVERLAY_CONFIGS: Record<ProviderId, ProviderOverlayConfig> = {
   twitter: {
     providerName: 'Twitter/X',
-    guide: 'When you successfully log in to Twitter/X, please click the "Start" button below to initiate the verification process. This will capture your Twitter profile data using zero-knowledge TLS proofs.',
+    requiredPage: 'Navigate to your profile page (x.com/your_username)',
+    guide: 'Your browser will create an encrypted proof of your profile data. Nothing is sent to our servers.',
+    dataVerified: [
+      'Follower count',
+      'Account creation date',
+      'Verification badge status',
+      'Following @AnyLayerOrg status'
+    ],
     conditions: [
-      'Twitter/X account is logged in',
-      'Wallet is connected',
-      'Account has been active for at least 30 days'
+      { text: 'Logged in to Twitter/X' },
+      { text: 'On your profile page' },
+      { text: 'Follow @AnyLayerOrg', link: 'https://x.com/anylayerorg' },
+      { text: 'Wallet connected' }
     ]
   },
   binance: {
     providerName: 'Binance',
-    guide: 'When you successfully log in to Binance, please click the "Start" button below to initiate the verification process. This will capture your KYC level and account information using zero-knowledge TLS proofs.',
+    requiredPage: 'Navigate to Account > Identification',
+    guide: 'We will capture your KYC verification level from your account identification page.',
+    dataVerified: [
+      'KYC verification level',
+      'Account status',
+      'Verification timestamp'
+    ],
     conditions: [
-      'Binance account is logged in',
-      'Wallet is connected',
-      'Account has completed at least basic KYC verification'
+      { text: 'Logged in to Binance' },
+      { text: 'On Identification page' },
+      { text: 'Completed at least Basic KYC' },
+      { text: 'Wallet connected' }
     ]
   },
   okx: {
     providerName: 'OKX',
-    guide: 'When you successfully log in to OKX, please click the "Start" button below to initiate the verification process. This will capture your KYC level and account information using zero-knowledge TLS proofs.',
+    requiredPage: 'Navigate to Profile > Verification',
+    guide: 'We will capture your KYC verification level from your verification page.',
+    dataVerified: [
+      'KYC verification level',
+      'Account status'
+    ],
     conditions: [
-      'OKX account is logged in',
-      'Wallet is connected',
-      'Account has completed at least basic KYC verification'
+      { text: 'Logged in to OKX' },
+      { text: 'On Verification page' },
+      { text: 'Completed at least Basic KYC' },
+      { text: 'Wallet connected' }
     ]
   },
   kucoin: {
     providerName: 'KuCoin',
-    guide: 'When you successfully log in to KuCoin, please click the "Start" button below to initiate the verification process. This will capture your KYC level and account information using zero-knowledge TLS proofs.',
+    requiredPage: 'Navigate to Account > KYC Verification',
+    guide: 'We will capture your KYC verification level from your KYC verification page.',
+    dataVerified: [
+      'KYC verification level',
+      'Account status'
+    ],
     conditions: [
-      'KuCoin account is logged in',
-      'Wallet is connected',
-      'Account has completed at least basic KYC verification'
+      { text: 'Logged in to KuCoin' },
+      { text: 'On KYC Verification page' },
+      { text: 'Completed at least Basic KYC' },
+      { text: 'Wallet connected' }
     ]
   },
   coinbase: {
     providerName: 'Coinbase',
-    guide: 'When you successfully log in to Coinbase, please click the "Start" button below to initiate the verification process. This will capture your KYC level and account information using zero-knowledge TLS proofs.',
+    requiredPage: 'Navigate to Settings > Security',
+    guide: 'We will capture your identity verification status from your security settings.',
+    dataVerified: [
+      'Identity verification level',
+      'Account status'
+    ],
     conditions: [
-      'Coinbase account is logged in',
-      'Wallet is connected',
-      'Account has completed at least basic KYC verification'
+      { text: 'Logged in to Coinbase' },
+      { text: 'On Security settings' },
+      { text: 'Completed identity verification' },
+      { text: 'Wallet connected' }
     ]
   },
   linkedin: {
     providerName: 'LinkedIn',
-    guide: 'When you successfully log in to LinkedIn, please click the "Start" button below to initiate the verification process. This will capture your professional profile and connections using zero-knowledge TLS proofs.',
+    requiredPage: 'Navigate to your profile page',
+    guide: 'We will capture your professional profile data including connections and experience from your profile page.',
+    dataVerified: [
+      'Connection count',
+      'Profile headline',
+      'Experience summary'
+    ],
     conditions: [
-      'LinkedIn account is logged in',
-      'Wallet is connected',
-      'Profile has at least 10 connections'
+      { text: 'Logged in to LinkedIn' },
+      { text: 'On your profile page' },
+      { text: 'At least 10 connections' },
+      { text: 'Wallet connected' }
     ]
   },
   fiverr: {
     providerName: 'Fiverr',
-    guide: 'When you successfully log in to Fiverr, please click the "Start" button below to initiate the verification process. This will capture your freelancer profile and work history using zero-knowledge TLS proofs.',
+    requiredPage: 'Navigate to your seller profile',
+    guide: 'We will capture your freelancer stats including completed jobs and ratings from your profile.',
+    dataVerified: [
+      'Completed jobs count',
+      'Seller rating',
+      'Account level'
+    ],
     conditions: [
-      'Fiverr account is logged in',
-      'Wallet is connected',
-      'Account has completed at least 1 job'
+      { text: 'Logged in to Fiverr' },
+      { text: 'On your seller profile' },
+      { text: 'Completed at least 1 job' },
+      { text: 'Wallet connected' }
     ]
   },
   upwork: {
     providerName: 'Upwork',
-    guide: 'When you successfully log in to Upwork, please click the "Start" button below to initiate the verification process. This will capture your freelancer profile and work history using zero-knowledge TLS proofs.',
+    requiredPage: 'Navigate to your freelancer profile',
+    guide: 'We will capture your work history and stats from your freelancer profile page.',
+    dataVerified: [
+      'Jobs completed',
+      'Success rate',
+      'Total earnings tier'
+    ],
     conditions: [
-      'Upwork account is logged in',
-      'Wallet is connected',
-      'Account has completed at least 1 job'
+      { text: 'Logged in to Upwork' },
+      { text: 'On your profile page' },
+      { text: 'Completed at least 1 job' },
+      { text: 'Wallet connected' }
     ]
   },
   youtube: {
     providerName: 'YouTube',
-    guide: 'When you successfully log in to YouTube, please click the "Start" button below to initiate the verification process. This will capture your channel statistics and subscriber count using zero-knowledge TLS proofs.',
+    requiredPage: 'Navigate to your channel page or YouTube Studio',
+    guide: 'We will capture your channel statistics including subscribers and total views from your channel page.',
+    dataVerified: [
+      'Subscriber count',
+      'Total video views',
+      'Channel creation date',
+      'Partnership status'
+    ],
     conditions: [
-      'YouTube account is logged in',
-      'Wallet is connected',
-      'Channel has at least 100 subscribers'
+      { text: 'Logged in to YouTube' },
+      { text: 'On your channel page' },
+      { text: 'At least 100 subscribers' },
+      { text: 'Wallet connected' }
     ]
   },
   tiktok: {
     providerName: 'TikTok',
-    guide: 'When you successfully log in to TikTok, please click the "Start" button below to initiate the verification process. This will capture your creator profile and follower count using zero-knowledge TLS proofs.',
+    requiredPage: 'Navigate to your profile page',
+    guide: 'We will capture your creator stats including followers and total views from your profile page.',
+    dataVerified: [
+      'Follower count',
+      'Total video views',
+      'Account creation date'
+    ],
     conditions: [
-      'TikTok account is logged in',
-      'Wallet is connected',
-      'Account has at least 100 followers'
+      { text: 'Logged in to TikTok' },
+      { text: 'On your profile page' },
+      { text: 'At least 100 followers' },
+      { text: 'Wallet connected' }
     ]
   },
   twitch: {
     providerName: 'Twitch',
-    guide: 'When you successfully log in to Twitch, please click the "Start" button below to initiate the verification process. This will capture your streamer profile and follower count using zero-knowledge TLS proofs.',
+    requiredPage: 'Navigate to your channel page',
+    guide: 'We will capture your streamer stats including followers and view count from your channel page.',
+    dataVerified: [
+      'Follower count',
+      'Total views',
+      'Partner status'
+    ],
     conditions: [
-      'Twitch account is logged in',
-      'Wallet is connected',
-      'Account has at least 50 followers'
+      { text: 'Logged in to Twitch' },
+      { text: 'On your channel page' },
+      { text: 'At least 50 followers' },
+      { text: 'Wallet connected' }
     ]
   }
 };
@@ -122,10 +203,11 @@ export const PROVIDER_OVERLAY_CONFIGS: Record<ProviderId, ProviderOverlayConfig>
 export function getProviderOverlayConfig(providerId: ProviderId): ProviderOverlayConfig {
   return PROVIDER_OVERLAY_CONFIGS[providerId] || {
     providerName: providerId,
-    guide: 'Please click the "Start" button below to initiate the verification process.',
+    guide: 'Please navigate to the appropriate page and click "Start" to begin verification.',
+    dataVerified: ['Profile information'],
     conditions: [
-      `${providerId} account is logged in`,
-      'Wallet is connected'
+      { text: `${providerId} account is logged in` },
+      { text: 'Wallet connected' }
     ]
   };
 }

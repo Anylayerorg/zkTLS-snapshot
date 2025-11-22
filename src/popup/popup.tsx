@@ -63,11 +63,17 @@ function Popup() {
       const response = await fetch(`https://us-central1-zksscore.cloudfunctions.net/api/api/v1/user/${address}/profile`);
       if (response.ok) {
         const data = await response.json();
-        // Check if user has a registered identity
-        if (data.primaryName) {
-          setUserIdentity(data.primaryName);
-        } else if (data.identities && data.identities.length > 0) {
-          setUserIdentity(data.identities[0].name);
+        console.log('[Popup] User profile data:', data);
+        // API returns { success: true, data: { username, primaryIdentity, ... } }
+        if (data.success && data.data) {
+          const profile = data.data;
+          if (profile.username) {
+            setUserIdentity(profile.username);
+          } else if (profile.primaryIdentity?.name) {
+            setUserIdentity(profile.primaryIdentity.name);
+          } else if (profile.identities && profile.identities.length > 0) {
+            setUserIdentity(profile.identities[0].name);
+          }
         }
       }
     } catch (error) {
@@ -214,17 +220,21 @@ function Popup() {
             </p>
             <button
               onClick={handleDisconnect}
+              title="Disconnect"
               style={{
-                padding: '6px 12px',
-                fontSize: '12px',
-                backgroundColor: '#dc3545',
-                color: 'white',
-                border: 'none',
+                padding: '8px',
+                fontSize: '16px',
+                backgroundColor: 'transparent',
+                color: '#dc3545',
+                border: '1px solid #dc3545',
                 borderRadius: '4px',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
               }}
             >
-              Disconnect
+              ✕
             </button>
           </div>
 

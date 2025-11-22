@@ -49,6 +49,19 @@ window.addEventListener('message', (event) => {
       }
     });
   }
+  
+  // Handle pending provider setup
+  if (message.type === 'ANYLAYER_SET_PENDING_PROVIDER' && message.provider) {
+    console.log('[Dashboard Bridge] Setting pending provider:', message.provider);
+    
+    // Store in chrome.storage so it's accessible from any domain
+    chrome.storage.local.set({ 
+      pendingProvider: message.provider,
+      pendingProviderTimestamp: Date.now()
+    }, () => {
+      console.log('[Dashboard Bridge] Pending provider saved to chrome.storage');
+    });
+  }
 });
 
 // Notify dashboard that extension is ready
