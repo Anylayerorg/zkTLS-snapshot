@@ -133,7 +133,7 @@ function Popup() {
   function handleConnectWallet() {
     // Open dashboard in new tab for wallet connection
     chrome.tabs.create({
-      url: 'https://dashboard-v2-kscq8e8a5-onchainids-projects.vercel.app'
+      url: 'https://app.anylayer.org/dashboard'
     });
   }
 

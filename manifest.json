@@ -22,8 +22,14 @@
     "https://www.youtube.com/*",
     "https://www.tiktok.com/*",
     "https://www.twitch.tv/*",
-    "https://us-central1-zksscore.cloudfunctions.net/*"
+    "https://us-central1-zksscore.cloudfunctions.net/*",
+    "https://app.anylayer.org/*"
   ],
+  "externally_connectable": {
+    "matches": [
+      "https://app.anylayer.org/*"
+    ]
+  },
   "background": {
     "service_worker": "background/background.js"
   },
