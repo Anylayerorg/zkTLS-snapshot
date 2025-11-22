@@ -20,7 +20,8 @@ module.exports = (env, argv) => {
       popup: './src/popup/popup.tsx',
       options: './src/options/options.tsx',
       content: './src/content/content.ts',
-      injected: './src/content/injected.ts'
+      injected: './src/content/injected.ts',
+      'dashboard-bridge': './src/content/dashboard-bridge.ts'
     },
     output: {
       path: path.resolve(__dirname, 'dist'),

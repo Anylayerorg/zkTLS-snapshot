@@ -64,6 +64,9 @@ async function handleMessage(
       case 'SET_WALLET_ADDRESS':
         await handleSetWalletAddress(message, sendResponse);
         break;
+      case 'CLEAR_WALLET_ADDRESS':
+        await handleClearWalletAddress(sendResponse);
+        break;
       case 'PING':
         sendResponse({ success: true, message: 'Extension is ready' });
         break;
@@ -510,6 +513,23 @@ async function handleSetWalletAddress(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('[Background] Error setting wallet address:', errorMessage);
+    sendResponse({ success: false, error: errorMessage });
+  }
+}
+
+/**
+ * Clear wallet address (disconnect)
+ */
+async function handleClearWalletAddress(
+  sendResponse: (response: any) => void
+) {
+  try {
+    await chrome.storage.local.remove('userAddress');
+    console.log('[Background] Wallet address cleared');
+    sendResponse({ success: true });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Background] Error clearing wallet address:', errorMessage);
     sendResponse({ success: false, error: errorMessage });
   }
 }
