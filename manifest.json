@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AnyLayer zkTLS Snapshot",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Generate privacy-preserving zkTLS snapshots from Web2 providers",
   "permissions": [
     "storage",

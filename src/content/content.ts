@@ -50,8 +50,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true;
 });
 
+// Check if this page was opened from dashboard for verification
+function checkPendingProvider() {
+  if (!isSupportedProvider()) return;
+  
+  try {
+    const pendingProvider = localStorage.getItem('zkTLS_pendingProvider');
+    if (pendingProvider) {
+      console.log('[AnyLayer] Pending provider verification detected:', pendingProvider);
+      // Clear the flag
+      localStorage.removeItem('zkTLS_pendingProvider');
+      // Show overlay after a short delay to let page load
+      setTimeout(() => {
+        createProviderOverlay(pendingProvider as any);
+      }, 2000);
+    }
+  } catch (error) {
+    console.warn('[AnyLayer] Failed to check pending provider:', error);
+  }
+}
+
+// Run on page load
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+  checkPendingProvider();
+} else {
+  window.addEventListener('DOMContentLoaded', checkPendingProvider);
+}
+
 // Overlay is only shown when explicitly requested via message from platform/dashboard
-// Do not auto-show overlay - it will be triggered when user clicks provider tab on platform
+// or when user opens a provider page from dashboard
 
 // Inject script into page context
 const script = document.createElement('script');

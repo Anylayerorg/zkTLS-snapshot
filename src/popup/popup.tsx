@@ -8,6 +8,7 @@ import { TLSSnapshotDoc } from '../types';
 
 function Popup() {
   const [userAddress, setUserAddress] = useState<string | null>(null);
+  const [userIdentity, setUserIdentity] = useState<string | null>(null);
   const [snapshots, setSnapshots] = useState<TLSSnapshotDoc[]>([]);
   const [currentProvider, setCurrentProvider] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -23,6 +24,7 @@ function Popup() {
         if (result.userAddress) {
           setUserAddress(result.userAddress);
           loadSnapshots(result.userAddress);
+          fetchUserIdentity(result.userAddress);
         }
       });
     };
@@ -36,8 +38,10 @@ function Popup() {
         if (newAddress) {
           setUserAddress(newAddress);
           loadSnapshots(newAddress);
+          fetchUserIdentity(newAddress);
         } else {
           setUserAddress(null);
+          setUserIdentity(null);
           setSnapshots([]);
         }
       }
@@ -53,6 +57,23 @@ function Popup() {
       clearInterval(pollInterval);
     };
   }, []);
+
+  async function fetchUserIdentity(address: string) {
+    try {
+      const response = await fetch(`https://us-central1-zksscore.cloudfunctions.net/api/api/v1/user/${address}/profile`);
+      if (response.ok) {
+        const data = await response.json();
+        // Check if user has a registered identity
+        if (data.primaryName) {
+          setUserIdentity(data.primaryName);
+        } else if (data.identities && data.identities.length > 0) {
+          setUserIdentity(data.identities[0].name);
+        }
+      }
+    } catch (error) {
+      console.warn('Could not fetch user identity:', error);
+    }
+  }
 
   async function checkCurrentProvider() {
     try {
@@ -137,6 +158,21 @@ function Popup() {
     });
   }
 
+  function handleDisconnect() {
+    // Clear wallet address from storage
+    chrome.storage.local.remove('userAddress', () => {
+      setUserAddress(null);
+      setUserIdentity(null);
+      setSnapshots([]);
+      // Notify dashboard to disconnect (if open)
+      chrome.tabs.query({ url: 'https://app.anylayer.org/*' }, (tabs) => {
+        if (tabs.length > 0 && tabs[0].id) {
+          chrome.tabs.sendMessage(tabs[0].id, { type: 'DISCONNECT_WALLET' });
+        }
+      });
+    });
+  }
+
   return (
     <div style={{ width: '400px', padding: '20px', fontFamily: 'system-ui' }}>
       <h1 style={{ fontSize: '18px', marginBottom: '20px' }}>
@@ -162,9 +198,35 @@ function Popup() {
         </div>
       ) : (
         <div>
-          <p style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
-            Wallet: {userAddress.slice(0, 6)}...{userAddress.slice(-4)}
-          </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+            <p style={{ fontSize: '14px', color: '#333', margin: 0, fontWeight: '600' }}>
+              {userIdentity ? (
+                <>
+                  <span style={{ color: '#007bff' }}>{userIdentity}</span>
+                  <br />
+                  <span style={{ fontSize: '11px', color: '#666', fontWeight: 'normal' }}>
+                    {userAddress.slice(0, 6)}...{userAddress.slice(-4)}
+                  </span>
+                </>
+              ) : (
+                <span>{userAddress.slice(0, 6)}...{userAddress.slice(-4)}</span>
+              )}
+            </p>
+            <button
+              onClick={handleDisconnect}
+              style={{
+                padding: '6px 12px',
+                fontSize: '12px',
+                backgroundColor: '#dc3545',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              Disconnect
+            </button>
+          </div>
 
           {currentProvider ? (
             <div style={{ marginBottom: '20px' }}>
