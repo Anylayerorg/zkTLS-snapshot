@@ -3,7 +3,7 @@ import { ProviderId, SnapshotType, CreatorAttributes } from '../types';
 
 export class YouTubeAdapter extends BaseProviderAdapter {
   id: ProviderId = 'youtube';
-  hostPatterns = ['*.youtube.com'];
+  hostPatterns = ['youtube.com', '*.youtube.com'];
   snapshotType: SnapshotType = 'video';
   defaultExpiryDays = 90;
 

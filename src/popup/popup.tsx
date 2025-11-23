@@ -186,21 +186,96 @@ function Popup() {
       </h1>
 
       {!userAddress ? (
-        <div>
-          <p>Connect your wallet to get started</p>
+        // IMPROVED: Better UI when wallet not connected
+        <div style={{ textAlign: 'center', padding: '30px 20px' }}>
+          {/* Icon */}
+          <div style={{
+            width: '80px',
+            height: '80px',
+            margin: '0 auto 20px',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '40px'
+          }}>
+            🔐
+          </div>
+          
+          {/* Title */}
+          <h2 style={{
+            fontSize: '20px',
+            fontWeight: '700',
+            color: '#1a1a1a',
+            marginBottom: '12px'
+          }}>
+            Connect Your Wallet
+          </h2>
+          
+          {/* Description */}
+          <p style={{
+            fontSize: '14px',
+            color: '#666',
+            lineHeight: '1.6',
+            marginBottom: '24px'
+          }}>
+            Connect your wallet to create privacy-preserving snapshots of your Web2 profiles and verify your digital identity.
+          </p>
+          
+          {/* Features list */}
+          <div style={{
+            textAlign: 'left',
+            background: '#f8f9fa',
+            padding: '16px',
+            borderRadius: '8px',
+            marginBottom: '24px'
+          }}>
+            <div style={{ fontSize: '13px', color: '#495057', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ color: '#28a745', fontSize: '16px' }}>✓</span>
+              <span>Verify Twitter, LinkedIn, YouTube profiles</span>
+            </div>
+            <div style={{ fontSize: '13px', color: '#495057', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ color: '#28a745', fontSize: '16px' }}>✓</span>
+              <span>Prove KYC from exchanges (Binance, Coinbase)</span>
+            </div>
+            <div style={{ fontSize: '13px', color: '#495057', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ color: '#28a745', fontSize: '16px' }}>✓</span>
+              <span>Data stays local • Zero-knowledge proofs</span>
+            </div>
+          </div>
+          
+          {/* Connect button */}
           <button
             onClick={handleConnectWallet}
             style={{
-              padding: '10px 20px',
-              backgroundColor: '#007bff',
+              width: '100%',
+              padding: '14px 20px',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
               color: 'white',
               border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer'
+              borderRadius: '8px',
+              fontSize: '15px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'transform 0.2s',
+              boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)'
             }}
+            onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+            onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
           >
             Connect Wallet
           </button>
+          
+          {/* Help text */}
+          <p style={{
+            fontSize: '11px',
+            color: '#adb5bd',
+            marginTop: '16px',
+            lineHeight: '1.4'
+          }}>
+            You'll be redirected to the dashboard to connect your wallet securely.
+          </p>
         </div>
       ) : (
         <div>

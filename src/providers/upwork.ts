@@ -3,7 +3,7 @@ import { ProviderId, SnapshotType, FreelanceAttributes } from '../types';
 
 export class UpworkAdapter extends BaseProviderAdapter {
   id: ProviderId = 'upwork';
-  hostPatterns = ['*.upwork.com'];
+  hostPatterns = ['upwork.com', '*.upwork.com'];
   snapshotType: SnapshotType = 'freelance';
   defaultExpiryDays = 180;
 

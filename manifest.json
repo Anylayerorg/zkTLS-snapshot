@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AnyLayer zkTLS Snapshot",
-  "version": "1.0.7",
+  "version": "1.2.0",
   "description": "Generate privacy-preserving zkTLS snapshots from Web2 providers",
   "permissions": [
     "storage",
@@ -22,6 +22,12 @@
     "https://www.youtube.com/*",
     "https://www.tiktok.com/*",
     "https://www.twitch.tv/*",
+    "https://github.com/*",
+    "https://telegram.org/*",
+    "https://web.telegram.org/*",
+    "https://www.coursera.org/*",
+    "https://www.udemy.com/*",
+    "https://www.edx.org/*",
     "https://us-central1-zksscore.cloudfunctions.net/*",
     "https://app.anylayer.org/*"
   ],
@@ -56,7 +62,13 @@
         "https://www.upwork.com/*",
         "https://www.youtube.com/*",
         "https://www.tiktok.com/*",
-        "https://www.twitch.tv/*"
+        "https://www.twitch.tv/*",
+        "https://github.com/*",
+        "https://telegram.org/*",
+        "https://web.telegram.org/*",
+        "https://www.coursera.org/*",
+        "https://www.udemy.com/*",
+        "https://www.edx.org/*"
       ],
       "js": ["content/content.js"],
       "run_at": "document_idle"

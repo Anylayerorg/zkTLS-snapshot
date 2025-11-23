@@ -3,7 +3,7 @@ import { ProviderId, SnapshotType, CreatorAttributes } from '../types';
 
 export class TikTokAdapter extends BaseProviderAdapter {
   id: ProviderId = 'tiktok';
-  hostPatterns = ['*.tiktok.com'];
+  hostPatterns = ['tiktok.com', '*.tiktok.com'];
   snapshotType: SnapshotType = 'video';
   defaultExpiryDays = 90;
 

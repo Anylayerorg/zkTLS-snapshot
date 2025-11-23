@@ -7,7 +7,7 @@ import { ProviderId, SnapshotType, ExchangeAttributes } from '../types';
 
 export class BinanceAdapter extends BaseProviderAdapter {
   id: ProviderId = 'binance';
-  hostPatterns = ['*.binance.com'];
+  hostPatterns = ['binance.com', '*.binance.com'];
   snapshotType: SnapshotType = 'kyc';
   defaultExpiryDays = 180;
 

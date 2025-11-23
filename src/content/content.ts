@@ -21,7 +21,12 @@ function isSupportedProvider(): boolean {
     'upwork.com',
     'youtube.com',
     'tiktok.com',
-    'twitch.tv'
+    'twitch.tv',
+    'github.com',
+    'telegram.org', 'web.telegram.org',
+    'coursera.org',
+    'udemy.com',
+    'edx.org'
   ];
   
   return supportedHosts.some(host => hostname.includes(host));

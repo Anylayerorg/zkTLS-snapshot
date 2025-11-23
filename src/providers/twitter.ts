@@ -8,7 +8,7 @@ import { TLSNotaryService } from '../services/tlsnotary';
 
 export class TwitterAdapter extends BaseProviderAdapter {
   id: ProviderId = 'twitter';
-  hostPatterns = ['*.twitter.com', '*.x.com'];
+  hostPatterns = ['twitter.com', '*.twitter.com', 'x.com', '*.x.com'];
   snapshotType: SnapshotType = 'social';
   defaultExpiryDays = 30;
 

@@ -184,6 +184,11 @@ export class TLSNotaryService {
       youtube: 'www.youtube.com',
       tiktok: 'www.tiktok.com',
       twitch: 'www.twitch.tv',
+      github: 'api.github.com',
+      telegram: 'web.telegram.org',
+      coursera: 'www.coursera.org',
+      udemy: 'www.udemy.com',
+      edx: 'www.edx.org',
     };
 
     return domainMap[providerId] || null;

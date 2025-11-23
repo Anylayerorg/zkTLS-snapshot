@@ -3,7 +3,7 @@ import { ProviderId, SnapshotType, FreelanceAttributes } from '../types';
 
 export class FiverrAdapter extends BaseProviderAdapter {
   id: ProviderId = 'fiverr';
-  hostPatterns = ['*.fiverr.com'];
+  hostPatterns = ['fiverr.com', '*.fiverr.com'];
   snapshotType: SnapshotType = 'freelance';
   defaultExpiryDays = 180;
 

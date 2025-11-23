@@ -3,7 +3,7 @@ import { ProviderId, SnapshotType, CreatorAttributes } from '../types';
 
 export class TwitchAdapter extends BaseProviderAdapter {
   id: ProviderId = 'twitch';
-  hostPatterns = ['*.twitch.tv'];
+  hostPatterns = ['twitch.tv', '*.twitch.tv'];
   snapshotType: SnapshotType = 'streaming';
   defaultExpiryDays = 90;
 

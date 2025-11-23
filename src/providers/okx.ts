@@ -3,7 +3,7 @@ import { ProviderId, SnapshotType, ExchangeAttributes } from '../types';
 
 export class OKXAdapter extends BaseProviderAdapter {
   id: ProviderId = 'okx';
-  hostPatterns = ['*.okx.com'];
+  hostPatterns = ['okx.com', '*.okx.com'];
   snapshotType: SnapshotType = 'kyc';
   defaultExpiryDays = 180;
 

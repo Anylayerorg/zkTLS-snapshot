@@ -14,6 +14,11 @@ import { UpworkAdapter } from './upwork';
 import { YouTubeAdapter } from './youtube';
 import { TikTokAdapter } from './tiktok';
 import { TwitchAdapter } from './twitch';
+import { GitHubAdapter } from './github';
+import { TelegramAdapter } from './telegram';
+import { CourseraAdapter } from './coursera';
+import { UdemyAdapter } from './udemy';
+import { EdXAdapter } from './edx';
 
 // Export providerRegistry for use in background script
 export { providerRegistry } from './base';
@@ -31,5 +36,10 @@ export function initializeProviders(): void {
   providerRegistry.register(new YouTubeAdapter());
   providerRegistry.register(new TikTokAdapter());
   providerRegistry.register(new TwitchAdapter());
+  providerRegistry.register(new GitHubAdapter());
+  providerRegistry.register(new TelegramAdapter());
+  providerRegistry.register(new CourseraAdapter());
+  providerRegistry.register(new UdemyAdapter());
+  providerRegistry.register(new EdXAdapter());
 }
 

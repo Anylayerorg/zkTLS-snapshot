@@ -194,6 +194,85 @@ export const PROVIDER_OVERLAY_CONFIGS: Record<ProviderId, ProviderOverlayConfig>
       { text: 'At least 50 followers' },
       { text: 'Wallet connected' }
     ]
+  },
+  github: {
+    providerName: 'GitHub',
+    requiredPage: 'Navigate to your GitHub profile',
+    guide: 'We will capture your contribution stats and repository information from your profile.',
+    dataVerified: [
+      'Contribution count',
+      'Public repositories',
+      'Followers count',
+      'Organization memberships'
+    ],
+    conditions: [
+      { text: 'Logged in to GitHub' },
+      { text: 'On your profile page' },
+      { text: 'At least 100 contributions' },
+      { text: 'Wallet connected' }
+    ]
+  },
+  telegram: {
+    providerName: 'Telegram',
+    requiredPage: 'Open Telegram Web (web.telegram.org)',
+    guide: 'We will capture your group and channel memberships from Telegram Web.',
+    dataVerified: [
+      'Group memberships',
+      'Channel subscriptions',
+      'Account age'
+    ],
+    conditions: [
+      { text: 'Logged in to Telegram Web' },
+      { text: 'Wallet connected' }
+    ]
+  },
+  coursera: {
+    providerName: 'Coursera',
+    requiredPage: 'Navigate to your Accomplishments page',
+    guide: 'We will verify your completed courses and earned certificates.',
+    dataVerified: [
+      'Courses completed',
+      'Certificates earned',
+      'Courses enrolled'
+    ],
+    conditions: [
+      { text: 'Logged in to Coursera' },
+      { text: 'On your profile or accomplishments page' },
+      { text: 'At least 1 course completed' },
+      { text: 'Wallet connected' }
+    ]
+  },
+  udemy: {
+    providerName: 'Udemy',
+    requiredPage: 'Navigate to My Learning page',
+    guide: 'We will verify your completed courses and certificates from your learning page.',
+    dataVerified: [
+      'Courses completed',
+      'Certificates earned',
+      'Courses enrolled'
+    ],
+    conditions: [
+      { text: 'Logged in to Udemy' },
+      { text: 'On My Learning page' },
+      { text: 'At least 1 course completed' },
+      { text: 'Wallet connected' }
+    ]
+  },
+  edx: {
+    providerName: 'edX',
+    requiredPage: 'Navigate to your Dashboard',
+    guide: 'We will verify your completed courses and certificates from edX.',
+    dataVerified: [
+      'Courses completed',
+      'Certificates earned',
+      'Courses enrolled'
+    ],
+    conditions: [
+      { text: 'Logged in to edX' },
+      { text: 'On your dashboard' },
+      { text: 'At least 1 course completed' },
+      { text: 'Wallet connected' }
+    ]
   }
 };
 

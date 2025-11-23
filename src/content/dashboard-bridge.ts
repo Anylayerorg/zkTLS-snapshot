@@ -7,8 +7,9 @@ console.log('[AnyLayer Extension] Dashboard bridge loaded');
 
 // Listen for messages from the dashboard webpage
 window.addEventListener('message', (event) => {
-  // Only accept messages from our dashboard
-  if (event.origin !== 'https://app.anylayer.org') {
+  // Only accept messages from our dashboard (support both prod and localhost)
+  const allowedOrigins = ['https://app.anylayer.org', 'http://localhost:3000', 'http://localhost:3001'];
+  if (!allowedOrigins.includes(event.origin)) {
     return;
   }
 
@@ -27,12 +28,7 @@ window.addEventListener('message', (event) => {
         console.error('[Dashboard Bridge] Error:', chrome.runtime.lastError);
       } else {
         console.log('[Dashboard Bridge] Wallet synced to extension:', response);
-        
-        // Send confirmation back to dashboard
-        window.postMessage({
-          type: 'ANYLAYER_EXTENSION_READY',
-          success: response?.success || false
-        }, 'https://app.anylayer.org');
+        // DO NOT send EXTENSION_READY here - that creates an infinite loop!
       }
     });
   }
@@ -64,11 +60,7 @@ window.addEventListener('message', (event) => {
   }
 });
 
-// Notify dashboard that extension is ready
-window.postMessage({
-  type: 'ANYLAYER_EXTENSION_READY',
-  version: chrome.runtime.getManifest().version
-}, 'https://app.anylayer.org');
-
+// Dashboard bridge ready - no need to notify dashboard
+// The dashboard will send wallet sync messages directly
 console.log('[AnyLayer Extension] Dashboard bridge ready');
 

@@ -101,10 +101,32 @@ async function handleStartSnapshotFromOverlay(
     const url = new URL(tab.url!);
     const detectedAdapter = providerRegistry.findByHost(url.hostname);
     
-    if (!detectedAdapter || detectedAdapter.id !== message.provider) {
+    console.log('[Background] Overlay snapshot request:', {
+      requestedProvider: message.provider,
+      tabUrl: tab.url,
+      hostname: url.hostname,
+      detectedAdapter: detectedAdapter?.id || 'none',
+      allAdapters: Array.from((providerRegistry as any).adapters.keys())
+    });
+    
+    if (!detectedAdapter) {
       sendResponse({ 
         success: false, 
-        error: `Provider mismatch. Expected ${message.provider} but current page is ${detectedAdapter?.id || 'unknown'}` 
+        error: `Could not detect provider on ${url.hostname}. Please make sure you're on the correct page.` 
+      });
+      return;
+    }
+    
+    // Allow if detected adapter matches requested provider
+    if (detectedAdapter.id !== message.provider) {
+      console.warn('[Background] Provider mismatch:', {
+        expected: message.provider,
+        detected: detectedAdapter.id,
+        hostname: url.hostname
+      });
+      sendResponse({ 
+        success: false, 
+        error: `Provider mismatch. Expected ${message.provider} but detected ${detectedAdapter.id} on this page.` 
       });
       return;
     }
@@ -120,6 +142,8 @@ async function handleStartSnapshotFromOverlay(
       });
       return;
     }
+
+    console.log('[Background] Starting snapshot for', message.provider, 'with address', userAddress);
 
     // Trigger snapshot creation (without signature for now, can be added later)
     handleCreateSnapshot(

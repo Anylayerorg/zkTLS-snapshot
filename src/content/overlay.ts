@@ -35,6 +35,16 @@ function detectProvider(): ProviderId | null {
     return 'tiktok';
   } else if (hostname.includes('twitch.tv')) {
     return 'twitch';
+  } else if (hostname.includes('github.com')) {
+    return 'github';
+  } else if (hostname.includes('telegram.org')) {
+    return 'telegram';
+  } else if (hostname.includes('coursera.org')) {
+    return 'coursera';
+  } else if (hostname.includes('udemy.com')) {
+    return 'udemy';
+  } else if (hostname.includes('edx.org')) {
+    return 'edx';
   }
   
   return null;
@@ -137,18 +147,42 @@ function checkLoginStatus(provider: ProviderId): boolean {
         document.querySelector('.nav-item__profile-member-photo'),
         document.querySelector('[data-control-name="identity_profile_photo"]'),
         document.querySelector('.global-nav__primary-link-me-menu-trigger'),
+        document.querySelector('#global-nav-icon'),
+        document.querySelector('[data-control-name="nav.settings"]'),
+        document.querySelector('.nav-item__icon'),
+        document.querySelector('img.global-nav__me-photo'),
         // Cookie check
-        document.cookie.includes('li_at=')
+        document.cookie.includes('li_at=') || document.cookie.includes('JSESSIONID=')
       ];
       const isLinkedInLoggedIn = linkedinChecks.some(check => check);
       console.log('[AnyLayer] LinkedIn login checks:', { 
-        foundElements: linkedinChecks.filter(c => c).length,
-        isLoggedIn: isLinkedInLoggedIn 
+        foundElementsCount: linkedinChecks.filter(c => c && typeof c !== 'boolean').length,
+        hasCookie: document.cookie.includes('li_at=') || document.cookie.includes('JSESSIONID='),
+        isLoggedIn: isLinkedInLoggedIn,
+        url: window.location.href
       });
       return isLinkedInLoggedIn;
       
     case 'fiverr':
-      return !!document.cookie.split(';').find(c => c.trim().startsWith('fiverr_session='));
+      // Improved Fiverr login detection with multiple checks
+      const fiverrChecks = [
+        document.querySelector('nav [data-testid="profile-icon"]'), // Profile icon in header
+        document.querySelector('button[aria-label="User Menu"]'), // User menu
+        document.querySelector('.user-menu'), // User menu container
+        document.querySelector('[data-qa="user-menu"]'), // User menu data attribute
+        document.querySelector('a[href*="/users/"]'), // User profile link
+        // Cookie checks
+        document.cookie.includes('fiverr_session='),
+        document.cookie.includes('logged_in=')
+      ];
+      const isFiverrLoggedIn = fiverrChecks.some(check => check);
+      console.log('[AnyLayer] Fiverr login checks:', {
+        foundElementsCount: fiverrChecks.filter(c => c && typeof c !== 'boolean').length,
+        hasCookie: document.cookie.includes('fiverr_session=') || document.cookie.includes('logged_in='),
+        isLoggedIn: isFiverrLoggedIn,
+        url: window.location.href
+      });
+      return isFiverrLoggedIn;
       
     case 'upwork':
       return !!document.cookie.split(';').find(c => c.trim().startsWith('oauth_token='));
@@ -276,8 +310,11 @@ function showErrorOverlay(title: string, message: string) {
  * Create provider overlay with collapsible feature
  */
 export function createProviderOverlay(providerId?: ProviderId) {
-  // Detect provider if not provided
-  const provider = providerId || detectProvider();
+  // Always detect from current page to avoid mismatches
+  const detectedProvider = detectProvider();
+  
+  // Use detected provider, or fallback to provided one
+  const provider = detectedProvider || providerId;
   
   if (!provider) {
     console.warn('[AnyLayer Overlay] Unknown provider for current page:', window.location.hostname);
@@ -285,7 +322,8 @@ export function createProviderOverlay(providerId?: ProviderId) {
     return null;
   }
 
-  console.log('[AnyLayer Overlay] Creating overlay for provider:', provider);
+  // Log both for debugging
+  console.log('[AnyLayer Overlay] Creating overlay - Detected:', detectedProvider, 'Requested:', providerId, 'Using:', provider);
 
   // Remove existing overlay if present
   const existing = document.getElementById('anylayer-zkTLS-overlay');
@@ -295,8 +333,47 @@ export function createProviderOverlay(providerId?: ProviderId) {
 
   const config = getProviderOverlayConfig(provider);
   const providerName = config.providerName;
+  
+  // Wait for DOM to be fully loaded before checking login status
+  const checkWithDelay = () => {
+    return new Promise<void>((resolve) => {
+      if (document.readyState === 'complete') {
+        resolve();
+      } else {
+        window.addEventListener('load', () => resolve());
+      }
+    });
+  };
+  
+  // Initial check (might be false if page not loaded)
   let isLoggedIn = checkLoginStatus(provider);
   let isOnCorrectPage = checkCorrectPage(provider, config.requiredPage);
+  
+  // Recheck after page fully loads
+  checkWithDelay().then(() => {
+    const newLoginStatus = checkLoginStatus(provider);
+    const newPageStatus = checkCorrectPage(provider, config.requiredPage);
+    
+    if (newLoginStatus !== isLoggedIn || newPageStatus !== isOnCorrectPage) {
+      console.log('[AnyLayer Overlay] Status changed after page load:', {
+        wasLoggedIn: isLoggedIn,
+        nowLoggedIn: newLoginStatus,
+        wasOnCorrectPage: isOnCorrectPage,
+        nowOnCorrectPage: newPageStatus
+      });
+      isLoggedIn = newLoginStatus;
+      isOnCorrectPage = newPageStatus;
+      
+      // Update UI
+      updateOverlayStatus(overlay, provider);
+      
+      // Update status dot
+      const statusDot = document.getElementById('anylayer-status-dot');
+      if (statusDot) {
+        statusDot.style.background = isLoggedIn && isOnCorrectPage ? '#28a745' : '#ffc107';
+      }
+    }
+  });
 
   // Create overlay container - collapsible
   const overlay = document.createElement('div');
@@ -506,50 +583,59 @@ export function createProviderOverlay(providerId?: ProviderId) {
     margin-bottom: 10px;
   `;
   conditionsTitle.textContent = 'Requirements:';
-  const conditionsList = document.createElement('div');
+  const conditionsList = document.createElement('ul');
+  conditionsList.id = 'anylayer-conditions-list';
   conditionsList.style.cssText = `
+    list-style: none;
+    padding: 0;
+    margin: 0;
     font-size: 13px;
     color: #6c757d;
-    line-height: 2;
   `;
   
-  // Add conditions from config with status indicators
+  // Add conditions from config with dynamic checkboxes
   config.conditions.forEach((condition, index) => {
-    const item = document.createElement('div');
+    const item = document.createElement('li');
     item.style.cssText = `
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin-bottom: 4px;
-      padding-left: 16px;
-      position: relative;
+      gap: 10px;
+      margin-bottom: 10px;
+      opacity: 0.6;
+      transition: opacity 0.3s;
     `;
     
-    const status = document.createElement('span');
-    status.style.cssText = `
-      position: absolute;
-      left: 0;
+    // Checkbox indicator
+    const checkbox = document.createElement('span');
+    checkbox.className = 'condition-checkbox';
+    checkbox.style.cssText = `
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      border: 2px solid #ccc;
+      border-radius: 4px;
+      background: transparent;
+      flex-shrink: 0;
       font-size: 14px;
+      color: white;
+      font-weight: bold;
+      transition: all 0.3s;
     `;
-    // Check login status for first condition
-    if (index === 0) {
-      status.textContent = isLoggedIn ? '✓' : '❌';
-      status.style.color = isLoggedIn ? '#28a745' : '#dc3545';
-    } else {
-      status.textContent = '✓';
-      status.style.color = '#28a745';
-    }
     
     // If condition has a link, make it clickable
     if (condition.link) {
       const link = document.createElement('a');
       link.href = condition.link;
       link.target = '_blank';
+      link.rel = 'noopener noreferrer';
       link.textContent = condition.text;
       link.style.cssText = `
         color: #007bff;
         text-decoration: none;
-        font-weight: 500;
+        cursor: pointer;
+        flex: 1;
       `;
       link.onmouseover = () => {
         link.style.textDecoration = 'underline';
@@ -557,12 +643,13 @@ export function createProviderOverlay(providerId?: ProviderId) {
       link.onmouseout = () => {
         link.style.textDecoration = 'none';
       };
-      item.appendChild(status);
+      item.appendChild(checkbox);
       item.appendChild(link);
     } else {
       const text = document.createElement('span');
       text.textContent = condition.text;
-      item.appendChild(status);
+      text.style.cssText = 'flex: 1;';
+      item.appendChild(checkbox);
       item.appendChild(text);
     }
     
@@ -641,16 +728,46 @@ export function createProviderOverlay(providerId?: ProviderId) {
   `;
   document.head.appendChild(style);
 
-  // Assemble overlay
-  inner.appendChild(header);
-  if (pageSection) inner.appendChild(pageSection);
-  inner.appendChild(dataSection);
-  inner.appendChild(guideSection);
-  inner.appendChild(conditionsSection);
-  inner.appendChild(statusDiv);
-  inner.appendChild(startBtn);
-  inner.appendChild(footer);
-  overlay.appendChild(inner);
+  // Assemble overlay - updated for new structure
+  content.appendChild(pageSection ? pageSection : document.createComment(''));
+  if (pageSection) content.appendChild(pageSection);
+  content.appendChild(dataSection);
+  content.appendChild(guideSection);
+  content.appendChild(conditionsSection);
+  content.appendChild(statusDiv);
+  content.appendChild(startBtn);
+  content.appendChild(footer);
+  
+  overlay.appendChild(headerBar);
+  overlay.appendChild(content);
+
+  // Collapse/expand functionality
+  collapseBtn.onclick = (e) => {
+    e.stopPropagation();
+    isCollapsed = !isCollapsed;
+    if (isCollapsed) {
+      content.style.display = 'none';
+      collapseBtn.innerHTML = '▲';
+      overlay.style.width = 'auto';
+      // Position at bottom-right when collapsed
+      overlay.style.top = 'auto';
+      overlay.style.bottom = '20px';
+      overlay.style.transform = 'none';
+    } else {
+      content.style.display = 'block';
+      collapseBtn.innerHTML = '▼';
+      overlay.style.width = '380px';
+      // Position at middle-right when expanded
+      overlay.style.top = '50%';
+      overlay.style.bottom = 'auto';
+      overlay.style.transform = 'translateY(-50%)';
+    }
+  };
+
+  // Header bar click to toggle
+  headerBar.onclick = () => {
+    collapseBtn.click();
+  };
 
   // Add to page
   document.body.appendChild(overlay);
@@ -694,8 +811,19 @@ export function createProviderOverlay(providerId?: ProviderId) {
     }
   });
 
-  // Update status based on wallet/login state
-  updateOverlayStatus(overlay, provider);
+  // START CONTINUOUS MONITORING
+  startContinuousMonitoring(overlay, provider);
+
+  // Clean up monitoring when overlay is removed (find close button without redeclaration)
+  const headerCloseBtn = headerBar.querySelector('button:last-child') as HTMLButtonElement;
+  if (headerCloseBtn) {
+    const originalClose = headerCloseBtn.onclick;
+    headerCloseBtn.onclick = (e) => {
+      stopContinuousMonitoring();
+      if (originalClose) originalClose.call(headerCloseBtn, e);
+      else overlay.remove();
+    };
+  }
 
   return overlay;
 }
@@ -703,6 +831,9 @@ export function createProviderOverlay(providerId?: ProviderId) {
 async function updateOverlayStatus(overlay: HTMLElement, provider: ProviderId) {
   const statusDiv = overlay.querySelector('#anylayer-status') as HTMLElement;
   const startBtn = overlay.querySelector('#anylayer-start-btn') as HTMLButtonElement;
+  const statusDot = document.getElementById('anylayer-status-dot');
+  const statusText = document.getElementById('anylayer-status-text');
+  const conditionsList = overlay.querySelector('#anylayer-conditions-list') as HTMLElement;
 
   if (!statusDiv || !startBtn) return;
 
@@ -710,13 +841,68 @@ async function updateOverlayStatus(overlay: HTMLElement, provider: ProviderId) {
   const providerName = config.providerName;
 
   try {
-    // Check wallet connection
+    // Check all conditions
     const walletData = await chrome.storage.local.get('userAddress');
     const hasWallet = !!walletData.userAddress;
-
-    // Check if logged in to provider
     const isLoggedIn = checkLoginStatus(provider);
+    const isOnCorrectPage = checkCorrectPage(provider, config.requiredPage);
+    
+    // Check if ALL conditions are met
+    const allConditionsMet = hasWallet && isLoggedIn && isOnCorrectPage;
 
+    // Update status dot
+    if (statusDot) {
+      if (allConditionsMet) {
+        statusDot.style.background = '#28a745'; // Green - ready
+        if (statusText) statusText.textContent = 'Schema Matched';
+      } else if (isLoggedIn) {
+        statusDot.style.background = '#ffc107'; // Yellow - partial
+        if (statusText) statusText.textContent = 'Schema Matching';
+      } else {
+        statusDot.style.background = '#dc3545'; // Red - not logged in
+        if (statusText) statusText.textContent = 'Schema Matching';
+      }
+    }
+    
+    // Update conditions checklist
+    if (conditionsList) {
+      const conditionItems = conditionsList.querySelectorAll('li');
+      conditionItems.forEach((item, index) => {
+        const checkbox = item.querySelector('.condition-checkbox') as HTMLElement;
+        if (checkbox) {
+          // Determine which condition this is
+          let isConditionMet = false;
+          if (index === 0) {
+            // First condition: logged in
+            isConditionMet = isLoggedIn;
+          } else if (index === 1) {
+            // Second condition: correct page (if applicable)
+            isConditionMet = config.requiredPage ? isOnCorrectPage : true;
+          } else if (index === conditionItems.length - 1) {
+            // Last condition: wallet connected
+            isConditionMet = hasWallet;
+          } else {
+            // Middle conditions: provider-specific (mark as met if logged in)
+            isConditionMet = isLoggedIn;
+          }
+          
+          // Update checkbox appearance
+          if (isConditionMet) {
+            checkbox.textContent = '✓';
+            checkbox.style.background = '#28a745';
+            checkbox.style.borderColor = '#28a745';
+            item.style.opacity = '1';
+          } else {
+            checkbox.textContent = '';
+            checkbox.style.background = 'transparent';
+            checkbox.style.borderColor = '#ccc';
+            item.style.opacity = '0.6';
+          }
+        }
+      });
+    }
+
+    // Update status message and button
     if (!hasWallet) {
       statusDiv.style.display = 'block';
       statusDiv.style.background = '#fff3cd';
@@ -733,6 +919,14 @@ async function updateOverlayStatus(overlay: HTMLElement, provider: ProviderId) {
       startBtn.disabled = true;
       startBtn.style.opacity = '0.5';
       startBtn.style.cursor = 'not-allowed';
+    } else if (!isOnCorrectPage && config.requiredPage) {
+      statusDiv.style.display = 'block';
+      statusDiv.style.background = '#fff3cd';
+      statusDiv.style.color = '#856404';
+      statusDiv.textContent = `⚠️ ${config.requiredPage}`;
+      startBtn.disabled = true;
+      startBtn.style.opacity = '0.5';
+      startBtn.style.cursor = 'not-allowed';
     } else {
       statusDiv.style.display = 'block';
       statusDiv.style.background = '#e8f5e9';
@@ -744,6 +938,34 @@ async function updateOverlayStatus(overlay: HTMLElement, provider: ProviderId) {
     }
   } catch (error) {
     console.error('[AnyLayer Overlay] Error updating status:', error);
+  }
+}
+
+// Continuous monitoring interval for real-time status updates
+let monitoringInterval: NodeJS.Timeout | null = null;
+
+function startContinuousMonitoring(overlay: HTMLElement, provider: ProviderId) {
+  // Clear any existing interval
+  if (monitoringInterval) {
+    clearInterval(monitoringInterval);
+  }
+  
+  // Update status immediately
+  updateOverlayStatus(overlay, provider);
+  
+  // Then check every 2 seconds
+  monitoringInterval = setInterval(() => {
+    updateOverlayStatus(overlay, provider);
+  }, 2000);
+  
+  console.log('[AnyLayer] Started continuous page monitoring');
+}
+
+function stopContinuousMonitoring() {
+  if (monitoringInterval) {
+    clearInterval(monitoringInterval);
+    monitoringInterval = null;
+    console.log('[AnyLayer] Stopped continuous page monitoring');
   }
 }
 

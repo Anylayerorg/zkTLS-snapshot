@@ -3,7 +3,7 @@ import { ProviderId, SnapshotType, ExchangeAttributes } from '../types';
 
 export class CoinbaseAdapter extends BaseProviderAdapter {
   id: ProviderId = 'coinbase';
-  hostPatterns = ['*.coinbase.com'];
+  hostPatterns = ['coinbase.com', '*.coinbase.com'];
   snapshotType: SnapshotType = 'kyc';
   defaultExpiryDays = 180;
 

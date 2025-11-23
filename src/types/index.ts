@@ -13,7 +13,12 @@ export type ProviderId =
   | 'upwork'
   | 'youtube'
   | 'tiktok'
-  | 'twitch';
+  | 'twitch'
+  | 'github'
+  | 'telegram'
+  | 'coursera'
+  | 'udemy'
+  | 'edx';
 
 export type SnapshotType = 
   | 'social'
@@ -21,7 +26,8 @@ export type SnapshotType =
   | 'employment'
   | 'freelance'
   | 'video'
-  | 'streaming';
+  | 'streaming'
+  | 'education';
 
 export type SnapshotStatus = 'active' | 'revoked' | 'expired';
 
@@ -68,12 +74,40 @@ export interface CreatorAttributes {
   accountAgeDays: bigint;
 }
 
+export interface GitHubAttributes {
+  username: string;
+  contributions: number;
+  publicRepos: number;
+  followers: number;
+  following: number;
+  orgMemberships: number;
+  accountAgeDays: number;
+}
+
+export interface TelegramAttributes {
+  username: string;
+  accountAgeDays: number;
+  groupMemberships: number;
+  channelSubscriptions: number;
+}
+
+export interface EducationAttributes {
+  username: string;
+  coursesCompleted: number;
+  certificatesEarned: number;
+  coursesEnrolled: number;
+  accountAgeDays: number;
+}
+
 export type ProviderAttributes = 
   | TwitterAttributes
   | ExchangeAttributes
   | LinkedInAttributes
   | FreelanceAttributes
-  | CreatorAttributes;
+  | CreatorAttributes
+  | GitHubAttributes
+  | TelegramAttributes
+  | EducationAttributes;
 
 /**
  * Local secret snapshot (encrypted, stored only in extension)

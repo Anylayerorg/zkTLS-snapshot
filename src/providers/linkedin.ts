@@ -3,7 +3,7 @@ import { ProviderId, SnapshotType, LinkedInAttributes } from '../types';
 
 export class LinkedInAdapter extends BaseProviderAdapter {
   id: ProviderId = 'linkedin';
-  hostPatterns = ['*.linkedin.com'];
+  hostPatterns = ['linkedin.com', '*.linkedin.com'];
   snapshotType: SnapshotType = 'employment';
   defaultExpiryDays = 365;
 
@@ -23,10 +23,28 @@ export class LinkedInAdapter extends BaseProviderAdapter {
     if (!tab.id) return false;
     try {
       return await this.executeScript<boolean>(tab.id, () => {
-        const authToken = document.cookie.split(';').find(c => c.trim().startsWith('li_at='));
-        return !!authToken;
+        // Check for LinkedIn auth cookies
+        const cookies = document.cookie.split(';');
+        const hasLiAt = cookies.some(c => c.trim().startsWith('li_at='));
+        const hasJSession = cookies.some(c => c.trim().startsWith('JSESSIONID='));
+        
+        // Also check for DOM elements
+        const domChecks = [
+          document.querySelector('[data-test-id="nav-settings__dropdown-trigger"]'),
+          document.querySelector('.global-nav__me'),
+          document.querySelector('.nav-item__profile-member-photo'),
+          document.querySelector('#global-nav-icon'),
+          document.querySelector('img.global-nav__me-photo')
+        ];
+        const hasDomElement = domChecks.some(el => el !== null);
+        
+        const isLoggedIn = hasLiAt || hasJSession || hasDomElement;
+        console.log('[LinkedIn Adapter] Login check:', { hasLiAt, hasJSession, hasDomElement, isLoggedIn });
+        
+        return isLoggedIn;
       });
-    } catch {
+    } catch (error) {
+      console.error('[LinkedIn Adapter] Error checking login:', error);
       return false;
     }
   }

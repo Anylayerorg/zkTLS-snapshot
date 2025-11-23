@@ -3,7 +3,7 @@ import { ProviderId, SnapshotType, ExchangeAttributes } from '../types';
 
 export class KuCoinAdapter extends BaseProviderAdapter {
   id: ProviderId = 'kucoin';
-  hostPatterns = ['*.kucoin.com'];
+  hostPatterns = ['kucoin.com', '*.kucoin.com'];
   snapshotType: SnapshotType = 'kyc';
   defaultExpiryDays = 180;
 
