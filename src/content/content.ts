@@ -19,14 +19,16 @@ function isSupportedProvider(): boolean {
     'linkedin.com',
     'fiverr.com',
     'upwork.com',
-    'youtube.com',
-    'tiktok.com',
+    'youtube.com', 'studio.youtube.com',
+    'tiktok.com', 'tiktokstudio',
+    'instagram.com',
     'twitch.tv',
     'github.com',
     'telegram.org', 'web.telegram.org',
     'coursera.org',
     'udemy.com',
-    'edx.org'
+    'edx.org',
+    'uaepass.ae', 'ids.uaepass.ae' // UAE PASS support including login page
   ];
   
   return supportedHosts.some(host => hostname.includes(host));
@@ -99,9 +101,148 @@ function checkPendingProvider() {
 // Run on page load
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
   checkPendingProvider();
+  checkPersistedOverlay();
 } else {
-  window.addEventListener('DOMContentLoaded', checkPendingProvider);
+  window.addEventListener('DOMContentLoaded', () => {
+    checkPendingProvider();
+    checkPersistedOverlay();
+  });
 }
+
+// Check for persisted overlay state (for navigation persistence)
+function checkPersistedOverlay() {
+  if (!isSupportedProvider()) {
+    // If not a supported provider, clear persisted state
+    chrome.storage.local.remove(['overlayProvider', 'overlayTimestamp']);
+    return;
+  }
+  
+  chrome.storage.local.get(['overlayProvider', 'overlayTimestamp'], (result) => {
+    if (chrome.runtime.lastError) {
+      console.warn('[AnyLayer] Error checking persisted overlay:', chrome.runtime.lastError);
+      return;
+    }
+    
+    const { overlayProvider, overlayTimestamp } = result;
+    
+    if (overlayProvider) {
+      // Check if timestamp is recent (within last 5 minutes)
+      const now = Date.now();
+      const age = now - (overlayTimestamp || 0);
+      
+      if (age < 300000) { // 5 minutes
+        // Verify provider still matches current page
+        const hostname = window.location.hostname.toLowerCase();
+        let providerStillValid = false;
+        
+        // Check if current page matches the persisted provider
+        // Also allow navigation to login pages for same provider
+        if (overlayProvider === 'twitter' && (hostname.includes('twitter.com') || hostname.includes('x.com'))) {
+          providerStillValid = true;
+        } else if (overlayProvider === 'youtube' && (hostname.includes('youtube.com') || hostname.includes('studio.youtube.com'))) {
+          providerStillValid = true;
+        } else if (overlayProvider === 'linkedin' && hostname.includes('linkedin.com')) {
+          providerStillValid = true;
+        } else if (overlayProvider === 'github' && hostname.includes('github.com')) {
+          providerStillValid = true;
+        } else if (overlayProvider === 'fiverr' && hostname.includes('fiverr.com')) {
+          providerStillValid = true;
+        } else if (overlayProvider === 'uaepass' && (hostname.includes('uaepass.ae') || hostname.includes('ids.uaepass.ae'))) {
+          providerStillValid = true; // Allow navigation to login page
+        } else if (overlayProvider === 'tiktok' && (hostname.includes('tiktok.com') || hostname.includes('tiktokstudio'))) {
+          providerStillValid = true;
+        } else if (overlayProvider === 'instagram' && hostname.includes('instagram.com')) {
+          providerStillValid = true;
+        } else {
+          // Generic check for other providers
+          providerStillValid = hostname.includes(overlayProvider);
+        }
+        
+        if (providerStillValid) {
+          // Check if overlay already exists
+          const existingOverlay = document.getElementById('anylayer-zkTLS-overlay');
+          if (!existingOverlay) {
+            console.log('[AnyLayer] Restoring overlay after navigation:', overlayProvider, 'on', hostname);
+            // Wait for page to settle before restoring (longer wait for login pages)
+            const waitTime = hostname.includes('ids.uaepass.ae') || hostname.includes('authenticationendpoint') ? 2500 : 1500;
+            setTimeout(() => {
+              // Double-check overlay doesn't exist (race condition protection)
+              if (!document.getElementById('anylayer-zkTLS-overlay')) {
+                // For login pages, use the persisted provider
+                // createProviderOverlay will detect provider internally, but we pass the persisted one as fallback
+                console.log('[AnyLayer] Restoring overlay for provider:', overlayProvider);
+                createProviderOverlay(overlayProvider as any);
+              }
+            }, waitTime);
+          }
+        } else {
+          console.log('[AnyLayer] Provider mismatch after navigation, clearing persisted state');
+          chrome.storage.local.remove(['overlayProvider', 'overlayTimestamp']);
+        }
+      } else {
+        // Clear old overlay state
+        console.log('[AnyLayer] Persisted overlay too old, clearing');
+        chrome.storage.local.remove(['overlayProvider', 'overlayTimestamp']);
+      }
+    }
+  });
+}
+
+// Listen for navigation events (SPA navigation)
+let lastUrl = location.href;
+let navigationTimeout: NodeJS.Timeout | null = null;
+
+function handleNavigation() {
+  const url = location.href;
+  if (url !== lastUrl) {
+    lastUrl = url;
+    console.log('[AnyLayer] Navigation detected:', url);
+    
+    // Clear any pending navigation checks
+    if (navigationTimeout) {
+      clearTimeout(navigationTimeout);
+    }
+    
+    // Wait for page to settle before checking overlay
+    navigationTimeout = setTimeout(() => {
+      checkPersistedOverlay();
+      navigationTimeout = null;
+    }, 1000);
+  }
+}
+
+// Use MutationObserver for SPA navigation
+new MutationObserver(() => {
+  handleNavigation();
+}).observe(document, { subtree: true, childList: true });
+
+// Listen for pushState/replaceState (SPA navigation)
+const originalPushState = history.pushState;
+const originalReplaceState = history.replaceState;
+
+history.pushState = function(...args) {
+  originalPushState.apply(history, args);
+  setTimeout(handleNavigation, 100);
+};
+
+history.replaceState = function(...args) {
+  originalReplaceState.apply(history, args);
+  setTimeout(handleNavigation, 100);
+};
+
+// Listen for popstate (browser back/forward)
+window.addEventListener('popstate', () => {
+  setTimeout(() => {
+    handleNavigation();
+  }, 500);
+});
+
+// Listen for hashchange
+window.addEventListener('hashchange', () => {
+  setTimeout(() => {
+    handleNavigation();
+  }, 500);
+});
 
 // Overlay is only shown when explicitly requested via message from platform/dashboard
 // or when user opens a provider page from dashboard

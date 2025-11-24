@@ -45,6 +45,10 @@ function detectProvider(): ProviderId | null {
     return 'udemy';
   } else if (hostname.includes('edx.org')) {
     return 'edx';
+  } else if (hostname.includes('uaepass.ae')) {
+    return 'uaepass';
+  } else if (hostname.includes('instagram.com')) {
+    return 'instagram';
   }
   
   return null;
@@ -63,18 +67,87 @@ function checkCorrectPage(provider: ProviderId, requiredPage?: string): boolean 
   
   switch (provider) {
     case 'twitter':
-      // Check if on profile page (not home feed)
-      const isTwitterProfile = pathname.includes('/') && pathname !== '/' && 
-                               pathname !== '/home' && pathname !== '/explore' &&
-                               !pathname.includes('/messages') && !pathname.includes('/notifications');
-      console.log('[AnyLayer] Twitter profile check:', isTwitterProfile, pathname);
-      return isTwitterProfile;
+      // Check if on user's OWN profile page (not other users' profiles)
+      // Twitter/X URLs: x.com/username or twitter.com/username
+      // Need to detect logged-in username and verify URL matches
+      try {
+        // Try to get logged-in username from various sources
+        const accountSwitcher = document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]') as HTMLElement;
+        const accountMenu = document.querySelector('[aria-label*="Account menu"]') as HTMLElement;
+        
+        // Extract username from account switcher or menu
+        let loggedInUsername: string | null = null;
+        
+        // Method 1: Check account switcher text/content
+        if (accountSwitcher) {
+          const accountText = accountSwitcher.textContent || accountSwitcher.getAttribute('aria-label') || '';
+          const usernameMatch = accountText.match(/@(\w+)/);
+          if (usernameMatch) {
+            loggedInUsername = usernameMatch[1].toLowerCase();
+          }
+        }
+        
+        // Method 2: Check for user menu link
+        if (!loggedInUsername) {
+          const userLink = document.querySelector('a[href^="/"][href*="/"]') as HTMLAnchorElement;
+          if (userLink && userLink.href) {
+            const urlMatch = userLink.href.match(/(?:twitter\.com|x\.com)\/([^/?]+)/i);
+            if (urlMatch) {
+              loggedInUsername = urlMatch[1].toLowerCase();
+            }
+          }
+        }
+        
+        // Method 3: Extract from current URL if on own profile
+        const currentUrlMatch = window.location.href.match(/(?:twitter\.com|x\.com)\/([^/?]+)/i);
+        const currentUsername = currentUrlMatch ? currentUrlMatch[1].toLowerCase() : null;
+        
+        // If we have logged-in username, verify it matches current page
+        if (loggedInUsername && currentUsername) {
+          const isOwnProfile = loggedInUsername === currentUsername;
+          console.log('[AnyLayer] Twitter profile check:', {
+            loggedInUsername,
+            currentUsername,
+            isOwnProfile,
+            pathname
+          });
+          return isOwnProfile;
+        }
+        
+        // Fallback: If we can't detect username, require specific profile indicators
+        // Check if page has profile-specific elements (not home feed)
+        const hasProfileElements = !!(
+          document.querySelector('[data-testid="UserFollowersStat"]') ||
+          document.querySelector('[data-testid="UserFollowingStat"]') ||
+          document.querySelector('h1[data-testid="UserName"]') ||
+          pathname.match(/^\/[^/]+$/) // Simple username pattern: /username
+        );
+        
+        const isNotHomeFeed = pathname !== '/' && 
+                             pathname !== '/home' && 
+                             pathname !== '/explore' &&
+                             !pathname.includes('/messages') && 
+                             !pathname.includes('/notifications') &&
+                             !pathname.includes('/compose');
+        
+        const isTwitterProfile = hasProfileElements && isNotHomeFeed;
+        console.log('[AnyLayer] Twitter profile check (fallback):', {
+          hasProfileElements,
+          isNotHomeFeed,
+          isTwitterProfile,
+          pathname
+        });
+        return isTwitterProfile;
+      } catch (error) {
+        console.error('[AnyLayer] Error checking Twitter profile:', error);
+        // Fallback to basic check
+        return pathname !== '/' && pathname !== '/home' && !pathname.includes('/messages');
+      }
       
     case 'youtube':
-      // Check if on channel page or studio
-      return currentUrl.includes('/channel/') || 
-             currentUrl.includes('studio.youtube.com') ||
-             pathname.includes('/@');  // New YouTube channel URLs
+      // Check if on YouTube Studio Analytics
+      return currentUrl.includes('studio.youtube.com') && 
+             (pathname.includes('/analytics') || pathname.includes('/channel'));
              
     case 'linkedin':
       // Check if on own profile (has '/in/' in path)
@@ -97,9 +170,65 @@ function checkCorrectPage(provider: ProviderId, requiredPage?: string): boolean 
              pathname.includes('/profile');
              
     case 'tiktok':
+      // Check if on TikTok Studio Analytics
+      return currentUrl.includes('tiktok.com/tiktokstudio/analytics') ||
+             pathname.includes('/tiktokstudio/analytics');
     case 'twitch':
       // Check if on channel/profile page
       return pathname.includes('/@') || pathname.includes('/channel');
+      
+    case 'github':
+      // Check if on own profile page (github.com/username)
+      // GitHub profile URLs: github.com/username or github.com/username?tab=...
+      const githubProfileMatch = pathname.match(/^\/([^\/]+)(?:\/|$)/);
+      if (githubProfileMatch) {
+        const username = githubProfileMatch[1];
+        // Check if it's not a special page (settings, explore, etc.)
+        const specialPages = ['settings', 'explore', 'marketplace', 'pulls', 'issues', 'notifications'];
+        return !specialPages.includes(username.toLowerCase());
+      }
+      return false;
+      
+    case 'telegram':
+      // Telegram Web - any page is fine as long as logged in
+      return currentUrl.includes('web.telegram.org');
+      
+    case 'coursera':
+      // Check if on profile or accomplishments page
+      return pathname.includes('/accomplishments') || 
+             pathname.includes('/profile') ||
+             pathname.includes('/dashboard');
+      
+    case 'udemy':
+      // Check if on My Learning page or profile
+      return pathname.includes('/my-courses') || 
+             pathname.includes('/learning') ||
+             pathname.includes('/user');
+      
+    case 'edx':
+      // Check if on dashboard
+      return pathname.includes('/dashboard') || 
+             pathname.includes('/course') ||
+             pathname.includes('/profile');
+      
+    case 'uaepass':
+      // Check if on login page or profile/account page
+      return currentUrl.includes('ids.uaepass.ae') ||
+             pathname.includes('/profile') || 
+             pathname.includes('/account') ||
+             pathname.includes('/dashboard') ||
+             pathname.includes('/authenticationendpoint');
+      
+    case 'instagram':
+      // Check if on own profile page (instagram.com/username)
+      const instagramProfileMatch = pathname.match(/^\/([^\/\?]+)(?:\/|$)/);
+      if (instagramProfileMatch) {
+        const username = instagramProfileMatch[1];
+        // Check if it's not a special page
+        const specialPages = ['accounts', 'explore', 'reels', 'direct', 'stories'];
+        return !specialPages.includes(username.toLowerCase());
+      }
+      return false;
       
     default:
       return true;
@@ -204,8 +333,56 @@ function checkLoginStatus(provider: ProviderId): boolean {
       });
       return isYouTubeLoggedIn;
       
+    case 'github':
+      // Comprehensive GitHub login detection (matching adapter)
+      const githubChecks = [
+        document.querySelector('[data-test-selector="nav-avatar"]'),
+        document.querySelector('.Header-link[href^="/settings"]'),
+        document.querySelector('meta[name="user-login"]'),
+        document.querySelector('button[aria-label*="Account"]'),
+        document.querySelector('summary[aria-label*="Account"]'),
+        document.querySelector('.Header-item[href*="/settings"]'),
+        document.querySelector('[data-testid="avatar-button"]'),
+        document.querySelector('[data-testid="dashboard"]'),
+        document.querySelector('.dashboard-sidebar'),
+        document.querySelector('nav[aria-label="User account"]'),
+        // Cookie checks
+        document.cookie.includes('user_session=') ||
+        document.cookie.includes('logged_in=') ||
+        document.cookie.includes('_gh_sess=')
+      ];
+      const isGitHubLoggedIn = githubChecks.some(check => check);
+      console.log('[AnyLayer] GitHub login checks:', { 
+        foundElements: githubChecks.filter(c => c && typeof c !== 'boolean').length,
+        hasCookie: document.cookie.includes('user_session=') || document.cookie.includes('logged_in=') || document.cookie.includes('_gh_sess='),
+        isLoggedIn: isGitHubLoggedIn,
+        url: window.location.href
+      });
+      return isGitHubLoggedIn;
+      
     case 'tiktok':
-      return !!document.cookie.split(';').find(c => c.trim().startsWith('tt_chain_token='));
+      // Improved TikTok login detection
+      const tiktokChecks = [
+        document.querySelector('[data-e2e="profile-icon"]'),
+        document.querySelector('[data-e2e="nav-profile"]'),
+        document.querySelector('button[data-e2e="profile-icon"]'),
+        document.cookie.includes('tt_chain_token=') ||
+        document.cookie.includes('sessionid=') ||
+        document.cookie.includes('sid_tt=')
+      ];
+      return tiktokChecks.some(check => check);
+      
+    case 'instagram':
+      // Instagram login detection
+      const instagramChecks = [
+        document.querySelector('a[href*="/accounts/edit/"]'),
+        document.querySelector('a[href*="/direct/"]'),
+        document.querySelector('svg[aria-label="Home"]'),
+        document.querySelector('[aria-label="New Post"]'),
+        document.cookie.includes('sessionid=') ||
+        document.cookie.includes('ds_user_id=')
+      ];
+      return instagramChecks.some(check => check);
       
     case 'twitch':
       return !!document.cookie.split(';').find(c => c.trim().startsWith('auth-token='));
@@ -478,6 +655,8 @@ export function createProviderOverlay(providerId?: ProviderId) {
   closeBtn.onclick = (e) => {
     e.stopPropagation();
     overlay.remove();
+    // Clear persisted overlay state when closed
+    chrome.storage.local.remove(['overlayProvider', 'overlayTimestamp']);
   };
 
   headerRight.appendChild(collapseBtn);
@@ -772,6 +951,12 @@ export function createProviderOverlay(providerId?: ProviderId) {
   // Add to page
   document.body.appendChild(overlay);
 
+  // Persist overlay state for navigation persistence
+  chrome.storage.local.set({
+    overlayProvider: provider,
+    overlayTimestamp: Date.now()
+  });
+
   // Handle Start button click
   startBtn.addEventListener('click', async () => {
     startBtn.disabled = true;
@@ -792,22 +977,41 @@ export function createProviderOverlay(providerId?: ProviderId) {
         provider: provider
       });
 
+      if (!response) {
+        throw new Error('No response from extension. Please check if extension is installed and enabled.');
+      }
+
       if (response.success) {
         statusDiv.style.background = '#e8f5e9';
         statusDiv.style.color = '#2e7d32';
         statusDiv.textContent = '✅ Verification started! Check extension popup for progress.';
         startBtn.textContent = 'Started';
+        startBtn.disabled = true;
       } else {
-        throw new Error(response.error || 'Failed to start verification');
+        const errorMsg = response.error || 'Failed to start verification';
+        // Provide more helpful error messages
+        let userFriendlyError = errorMsg;
+        if (errorMsg.includes('detect provider')) {
+          userFriendlyError = `Could not detect ${providerName} on this page. Please make sure you're logged in and on the correct page.`;
+        } else if (errorMsg.includes('Wallet not connected')) {
+          userFriendlyError = 'Please connect your wallet in the extension popup or dashboard first.';
+        } else if (errorMsg.includes('Not logged in')) {
+          userFriendlyError = `Please log in to ${providerName} first.`;
+        }
+        throw new Error(userFriendlyError);
       }
     } catch (error) {
       statusDiv.style.background = '#ffebee';
       statusDiv.style.color = '#c62828';
-      statusDiv.textContent = `❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      statusDiv.textContent = `❌ ${errorMessage}`;
       startBtn.disabled = false;
-      startBtn.textContent = 'Start';
+      startBtn.textContent = isLoggedIn ? 'Take Snapshot' : `Log in to ${providerName}`;
       startBtn.style.opacity = '1';
       startBtn.style.cursor = 'pointer';
+      
+      // Log error for debugging
+      console.error('[AnyLayer Overlay] Snapshot creation error:', error);
     }
   });
 

@@ -90,6 +90,11 @@ async function handleStartSnapshotFromOverlay(
   sendResponse: (response: any) => void
 ) {
   try {
+    // Ensure providers are initialized
+    if (providerRegistry.getAll().length === 0) {
+      initializeProviders();
+    }
+
     // Get current tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !tab.id) {
@@ -106,9 +111,20 @@ async function handleStartSnapshotFromOverlay(
       tabUrl: tab.url,
       hostname: url.hostname,
       detectedAdapter: detectedAdapter?.id || 'none',
-      allAdapters: Array.from((providerRegistry as any).adapters.keys())
+      registeredProviders: providerRegistry.getAll().map(a => a.id)
     });
     
+    // First check if requested provider exists
+    const requestedAdapter = providerRegistry.get(message.provider as any);
+    if (!requestedAdapter) {
+      sendResponse({ 
+        success: false, 
+        error: `Unknown provider: ${message.provider}` 
+      });
+      return;
+    }
+
+    // Then verify it matches the current page
     if (!detectedAdapter) {
       sendResponse({ 
         success: false, 
@@ -117,8 +133,14 @@ async function handleStartSnapshotFromOverlay(
       return;
     }
     
-    // Allow if detected adapter matches requested provider
-    if (detectedAdapter.id !== message.provider) {
+    // Allow if detected adapter matches requested provider (or if hostname matches requested provider's patterns)
+    const hostnameMatches = requestedAdapter.hostPatterns.some(pattern => {
+      const regexPattern = pattern.replace(/\./g, '\\.').replace(/\*/g, '.*');
+      const regex = new RegExp(`^${regexPattern}$`);
+      return regex.test(url.hostname);
+    });
+
+    if (!hostnameMatches && detectedAdapter.id !== message.provider) {
       console.warn('[Background] Provider mismatch:', {
         expected: message.provider,
         detected: detectedAdapter.id,
@@ -145,7 +167,7 @@ async function handleStartSnapshotFromOverlay(
 
     console.log('[Background] Starting snapshot for', message.provider, 'with address', userAddress);
 
-    // Trigger snapshot creation (without signature for now, can be added later)
+    // Trigger snapshot creation (signature is optional - will use fallback encryption key)
     handleCreateSnapshot(
       { provider: message.provider, userAddress, signature: undefined },
       sendResponse
@@ -243,13 +265,25 @@ async function handleCreateSnapshot(
       snapshotVersion: 1
     };
 
-    // Derive encryption key
-    if (!signature) {
-      sendResponse({ success: false, error: 'Wallet signature required' });
-      return;
+    // Derive encryption key (signature optional - use fallback if not provided)
+    let encryptionKey: CryptoKey;
+    if (signature) {
+      encryptionKey = await deriveEncryptionKey(userAddress, signature);
+    } else {
+      // Fallback: use address-based encryption key (less secure but allows snapshot creation)
+      console.warn('[Background] No signature provided, using address-based encryption key');
+      const fallbackKey = await crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(`${userAddress}:AnyLayer zkTLS fallback key`)
+      );
+      encryptionKey = await crypto.subtle.importKey(
+        'raw',
+        new Uint8Array(fallbackKey),
+        { name: 'AES-GCM' },
+        false,
+        ['encrypt', 'decrypt']
+      );
     }
-
-    const encryptionKey = await deriveEncryptionKey(userAddress, signature);
     setEncryptionKey(encryptionKey);
 
     // Store encrypted snapshot locally
@@ -282,6 +316,15 @@ async function handleCreateSnapshot(
     const localScoreResult = computeHumanScoreLocal(adapter.id, localAttributes);
 
     // Send to backend (only computed scores, NOT raw metrics)
+    console.log('[Background] Sending snapshot to backend:', {
+      provider: adapter.id,
+      snapshotType: adapter.getSnapshotType(),
+      userAddress,
+      hasSignature: !!signature,
+      computedScore: localScoreResult.scoreDelta,
+      computedPoints: localScoreResult.pointsDelta
+    });
+    
     const backendResponse = await createSnapshot(
       {
         userAddress,
@@ -302,9 +345,19 @@ async function handleCreateSnapshot(
     );
 
     if (!backendResponse.success) {
+      console.error('[Background] Backend snapshot creation failed:', {
+        provider: adapter.id,
+        error: backendResponse.error,
+        userAddress
+      });
       sendResponse({ success: false, error: backendResponse.error });
       return;
     }
+    
+    console.log('[Background] Snapshot created successfully:', {
+      snapshotId: backendResponse.snapshotId,
+      provider: adapter.id
+    });
 
     sendResponse({
       success: true,
@@ -400,8 +453,13 @@ async function handleCheckProvider(
   sendResponse: (response: any) => void
 ) {
   try {
+    // Ensure providers are initialized
+    if (providerRegistry.getAll().length === 0) {
+      initializeProviders();
+    }
+
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab || !tab.url) {
+    if (!tab || !tab.id || !tab.url) {
       sendResponse({ success: false, error: 'No active tab' });
       return;
     }
@@ -414,7 +472,17 @@ async function handleCheckProvider(
       return;
     }
 
-    const isLoggedIn = await adapter.isLoggedIn(tab);
+    // Check login status by executing script in the tab context (more accurate)
+    // This matches what the overlay does
+    let isLoggedIn = false;
+    try {
+      isLoggedIn = await adapter.isLoggedIn(tab);
+    } catch (error) {
+      console.warn('[Background] Error checking login status:', error);
+      // Fallback: assume not logged in if check fails
+      isLoggedIn = false;
+    }
+
     sendResponse({
       success: true,
       provider: adapter.id,
@@ -451,6 +519,11 @@ async function handleShowProviderOverlay(
     if (!tab || !tab.id) {
       sendResponse({ success: false, error: 'No tab found' });
       return;
+    }
+
+    // Ensure providers are initialized
+    if (providerRegistry.getAll().length === 0) {
+      initializeProviders();
     }
 
     // Verify provider matches tab URL

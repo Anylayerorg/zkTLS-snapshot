@@ -12,7 +12,10 @@ function Popup() {
   const [snapshots, setSnapshots] = useState<TLSSnapshotDoc[]>([]);
   const [currentProvider, setCurrentProvider] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loadingIdentity, setLoadingIdentity] = useState(false);
+  const [loadingSnapshots, setLoadingSnapshots] = useState(false);
+  const [loadingProvider, setLoadingProvider] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     // Check current tab for provider
@@ -23,6 +26,7 @@ function Popup() {
       chrome.storage.local.get('userAddress', (result) => {
         if (result.userAddress) {
           setUserAddress(result.userAddress);
+          setError(null);
           loadSnapshots(result.userAddress);
           fetchUserIdentity(result.userAddress);
         }
@@ -49,39 +53,74 @@ function Popup() {
     
     chrome.storage.onChanged.addListener(handleStorageChange);
     
-    // Poll for wallet connection every 2 seconds (fallback)
-    const pollInterval = setInterval(loadUserAddress, 2000);
-    
     return () => {
       chrome.storage.onChanged.removeListener(handleStorageChange);
-      clearInterval(pollInterval);
     };
   }, []);
 
   async function fetchUserIdentity(address: string) {
+    setLoadingIdentity(true);
+    setError(null);
     try {
-      const response = await fetch(`https://us-central1-zksscore.cloudfunctions.net/api/api/v1/user/${address}/profile`);
-      if (response.ok) {
-        const data = await response.json();
-        console.log('[Popup] User profile data:', data);
-        // API returns { success: true, data: { username, primaryIdentity, ... } }
-        if (data.success && data.data) {
-          const profile = data.data;
-          if (profile.username) {
-            setUserIdentity(profile.username);
-          } else if (profile.primaryIdentity?.name) {
-            setUserIdentity(profile.primaryIdentity.name);
-          } else if (profile.identities && profile.identities.length > 0) {
-            setUserIdentity(profile.identities[0].name);
+      // First try to get identities (which contains the identity names)
+      const identitiesResponse = await fetch(`https://us-central1-zksscore.cloudfunctions.net/api/api/v1/user/${address}/identities`);
+      if (identitiesResponse.ok) {
+        const identitiesData = await identitiesResponse.json();
+        console.log('[Popup] User identities data:', identitiesData);
+        
+        if (identitiesData.success && identitiesData.identities && identitiesData.identities.length > 0) {
+          // Find primary identity first
+          const primaryIdentity = identitiesData.identities.find((id: any) => id.isPrimary === true);
+          if (primaryIdentity?.name) {
+            setUserIdentity(primaryIdentity.name);
+            setLoadingIdentity(false);
+            return;
+          }
+          
+          // Then find activated/soulbound identity
+          const activatedIdentity = identitiesData.identities.find((id: any) => id.soulbound === true || id.phase === 'SOULBOUND');
+          if (activatedIdentity?.name) {
+            setUserIdentity(activatedIdentity.name);
+            setLoadingIdentity(false);
+            return;
+          }
+          
+          // Fallback to first identity
+          if (identitiesData.identities[0]?.name) {
+            setUserIdentity(identitiesData.identities[0].name);
+            setLoadingIdentity(false);
+            return;
           }
         }
       }
+      
+      // Fallback: try profile endpoint for username
+      const profileResponse = await fetch(`https://us-central1-zksscore.cloudfunctions.net/api/api/v1/user/${address}/profile`);
+      if (profileResponse.ok) {
+        const profileData = await profileResponse.json();
+        console.log('[Popup] User profile data:', profileData);
+        
+        if (profileData.success && profileData.data) {
+          const profile = profileData.data;
+          if (profile.username) {
+            setUserIdentity(profile.username);
+            setLoadingIdentity(false);
+            return;
+          }
+        }
+      }
+      
+      setLoadingIdentity(false);
     } catch (error) {
       console.warn('Could not fetch user identity:', error);
+      setLoadingIdentity(false);
+      // Keep userIdentity as null, will show wallet address instead
     }
   }
 
   async function checkCurrentProvider() {
+    setLoadingProvider(true);
+    setError(null);
     try {
       const response = await chrome.runtime.sendMessage({
         type: 'CHECK_PROVIDER'
@@ -90,13 +129,21 @@ function Popup() {
       if (response.success && response.provider) {
         setCurrentProvider(response.provider);
         setIsLoggedIn(response.isLoggedIn);
+      } else {
+        setCurrentProvider(null);
+        setIsLoggedIn(false);
       }
     } catch (error) {
       console.error('Error checking provider:', error);
+      setError('Failed to check provider. Please refresh the page.');
+    } finally {
+      setLoadingProvider(false);
     }
   }
 
   async function loadSnapshots(address: string) {
+    setLoadingSnapshots(true);
+    setError(null);
     try {
       const response = await chrome.runtime.sendMessage({
         type: 'LIST_SNAPSHOTS',
@@ -105,57 +152,22 @@ function Popup() {
       
       if (response.success && response.snapshots) {
         setSnapshots(response.snapshots);
+      } else {
+        setSnapshots([]);
+        if (response.error) {
+          console.warn('Error loading snapshots:', response.error);
+        }
       }
     } catch (error) {
       console.error('Error loading snapshots:', error);
-    }
-  }
-
-  async function handleCreateSnapshot() {
-    if (!currentProvider || !userAddress) {
-      alert('Please connect wallet and navigate to a supported provider');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      // Get signature from user (would normally come from wallet)
-      const signature = prompt('Please sign message with your wallet');
-      if (!signature) {
-        setLoading(false);
-        return;
-      }
-
-      const response = await chrome.runtime.sendMessage({
-        type: 'CREATE_SNAPSHOT',
-        provider: currentProvider,
-        userAddress,
-        signature
-      });
-
-      if (response.success) {
-        // Check if snapshot has TLS verification
-        const hasTLSProof = response.initialProofHash || response.proofHash;
-        const message = hasTLSProof 
-          ? 'Snapshot created successfully! ✓ TLS-verified'
-          : 'Snapshot created successfully! ⚠️ Simulated (dev mode only)';
-        alert(message);
-        loadSnapshots(userAddress);
-        checkCurrentProvider();
-      } else {
-        // Provide helpful error messages
-        let errorMsg = response.error || 'Unknown error';
-        if (errorMsg.includes('notary') || errorMsg.includes('connection')) {
-          errorMsg += '\n\nTip: TLSNotary service may be unavailable. In dev mode, simulated proofs are used.';
-        }
-        alert(`Error: ${errorMsg}`);
-      }
-    } catch (error) {
-      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setError('Failed to load snapshots. Please try again.');
     } finally {
-      setLoading(false);
+      setLoadingSnapshots(false);
     }
   }
+
+  // Snapshot creation removed - only overlay should create snapshots
+  // This ensures all requirements are properly checked before creation
 
   function handleConnectWallet() {
     // Open dashboard in new tab for wallet connection
@@ -181,6 +193,11 @@ function Popup() {
 
   return (
     <div style={{ width: '400px', padding: '20px', fontFamily: 'system-ui' }}>
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
       <h1 style={{ fontSize: '18px', marginBottom: '20px' }}>
         AnyLayer zkTLS Snapshot
       </h1>
@@ -279,75 +296,287 @@ function Popup() {
         </div>
       ) : (
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-            <p style={{ fontSize: '14px', color: '#333', margin: 0, fontWeight: '600' }}>
-              {userIdentity ? (
+          {/* Error message */}
+          {error && (
+            <div style={{
+              background: '#fff3cd',
+              border: '1px solid #ffc107',
+              borderRadius: '8px',
+              padding: '12px',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px'
+            }}>
+              <span style={{ fontSize: '18px', flexShrink: 0 }}>⚠️</span>
+              <div style={{ flex: 1 }}>
+                <p style={{ 
+                  fontSize: '13px', 
+                  color: '#856404', 
+                  margin: 0, 
+                  marginBottom: '8px',
+                  fontWeight: '600'
+                }}>
+                  Error
+                </p>
+                <p style={{ 
+                  fontSize: '12px', 
+                  color: '#856404', 
+                  margin: 0,
+                  whiteSpace: 'pre-wrap',
+                  lineHeight: '1.5'
+                }}>
+                  {error}
+                </p>
+                <button
+                  onClick={() => setError(null)}
+                  style={{
+                    marginTop: '8px',
+                    padding: '4px 8px',
+                    fontSize: '11px',
+                    background: 'transparent',
+                    border: '1px solid #856404',
+                    borderRadius: '4px',
+                    color: '#856404',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '15px', borderBottom: '1px solid #e9ecef' }}>
+            <div style={{ flex: 1 }}>
+              {loadingIdentity ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{
+                    width: '16px',
+                    height: '16px',
+                    border: '2px solid #e9ecef',
+                    borderTopColor: '#007bff',
+                    borderRadius: '50%',
+                    animation: 'spin 0.8s linear infinite'
+                  }}></div>
+                  <p style={{ fontSize: '14px', color: '#666', margin: 0 }}>
+                    Loading identity...
+                  </p>
+                </div>
+              ) : userIdentity ? (
                 <>
-                  <span style={{ color: '#007bff' }}>{userIdentity}</span>
-                  <br />
-                  <span style={{ fontSize: '11px', color: '#666', fontWeight: 'normal' }}>
+                  <p style={{ fontSize: '18px', color: '#007bff', margin: 0, fontWeight: '700', marginBottom: '4px', lineHeight: '1.2' }}>
+                    {userIdentity}
+                  </p>
+                  <p style={{ fontSize: '11px', color: '#666', margin: 0, fontWeight: 'normal' }}>
                     {userAddress.slice(0, 6)}...{userAddress.slice(-4)}
-                  </span>
+                  </p>
                 </>
               ) : (
-                <span>{userAddress.slice(0, 6)}...{userAddress.slice(-4)}</span>
+                <p style={{ fontSize: '16px', color: '#333', margin: 0, fontWeight: '600' }}>
+                  {userAddress.slice(0, 6)}...{userAddress.slice(-4)}
+                </p>
               )}
-            </p>
+            </div>
             <button
               onClick={handleDisconnect}
-              title="Disconnect"
+              title="Disconnect Wallet"
               style={{
-                padding: '8px',
-                fontSize: '16px',
-                backgroundColor: 'transparent',
-                color: '#dc3545',
-                border: '1px solid #dc3545',
-                borderRadius: '4px',
+                padding: '10px 16px',
+                fontSize: '14px',
+                backgroundColor: '#dc3545',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                fontWeight: '600',
+                transition: 'all 0.2s',
+                marginLeft: '12px',
+                boxShadow: '0 2px 4px rgba(220, 53, 69, 0.2)'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.backgroundColor = '#c82333';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 4px 8px rgba(220, 53, 69, 0.3)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.backgroundColor = '#dc3545';
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 4px rgba(220, 53, 69, 0.2)';
               }}
             >
-              ✕
+              Disconnect
             </button>
           </div>
 
-          {currentProvider ? (
-            <div style={{ marginBottom: '20px' }}>
-              <p>
-                Provider: <strong>{currentProvider}</strong>
+          {/* How to create snapshots section */}
+          <div style={{
+            background: '#f8f9fa',
+            border: '1px solid #e9ecef',
+            borderRadius: '10px',
+            padding: '16px',
+            marginBottom: '20px'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              marginBottom: '12px'
+            }}>
+              <span style={{ fontSize: '16px' }}>📌</span>
+              <h3 style={{
+                fontSize: '14px',
+                fontWeight: '600',
+                color: '#495057',
+                margin: 0
+              }}>
+                How to create snapshots:
+              </h3>
+            </div>
+            <ol style={{
+              margin: 0,
+              paddingLeft: '20px',
+              fontSize: '13px',
+              color: '#495057',
+              lineHeight: '1.8'
+            }}>
+              <li style={{ marginBottom: '8px' }}>
+                Go to <strong>app.anylayer.org/dashboard</strong>
+              </li>
+              <li style={{ marginBottom: '8px' }}>
+                Click <strong>"Improve Trust Score"</strong> button
+              </li>
+              <li>
+                Select a provider → Overlay will open on provider page
+              </li>
+            </ol>
+          </div>
+
+          {loadingProvider ? (
+            <div style={{ 
+              marginBottom: '20px', 
+              padding: '16px', 
+              background: '#f8f9fa', 
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              <div style={{
+                width: '16px',
+                height: '16px',
+                border: '2px solid #e9ecef',
+                borderTopColor: '#007bff',
+                borderRadius: '50%',
+                animation: 'spin 0.8s linear infinite'
+              }}></div>
+              <p style={{ margin: 0, fontSize: '13px', color: '#666' }}>
+                Checking provider...
               </p>
-              <p>Status: {isLoggedIn ? '✅ Logged in' : '❌ Not logged in'}</p>
+            </div>
+          ) : currentProvider ? (
+            <div style={{ 
+              marginBottom: '20px',
+              padding: '16px',
+              background: '#f8f9fa',
+              borderRadius: '8px',
+              border: `1px solid ${isLoggedIn ? '#28a745' : '#ffc107'}`
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '18px' }}>
+                  {isLoggedIn ? '✅' : '⚠️'}
+                </span>
+                <div style={{ flex: 1 }}>
+                  <p style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: '#333' }}>
+                    Provider: <strong style={{ textTransform: 'capitalize' }}>{currentProvider}</strong>
+                  </p>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#666' }}>
+                    Status: {isLoggedIn ? 'Logged in' : 'Not logged in'}
+                  </p>
+                </div>
+              </div>
               
-              {isLoggedIn && (
-                <button
-                  onClick={handleCreateSnapshot}
-                  disabled={loading}
-                  style={{
-                    padding: '10px 20px',
-                    backgroundColor: loading ? '#ccc' : '#28a745',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    marginTop: '10px'
-                  }}
-                >
-                  {loading ? 'Creating...' : 'Create Snapshot'}
-                </button>
+              {!isLoggedIn && (
+                <p style={{ 
+                  margin: '12px 0 0 0', 
+                  fontSize: '12px', 
+                  color: '#856404',
+                  padding: '8px',
+                  background: '#fff3cd',
+                  borderRadius: '4px'
+                }}>
+                  ⚠️ Please log in to {currentProvider} to create snapshots via the overlay.
+                </p>
               )}
             </div>
           ) : (
-            <p style={{ color: '#666' }}>
-              Navigate to a supported provider (Twitter, Binance, etc.)
-            </p>
+            <div style={{ 
+              marginBottom: '20px',
+              padding: '16px',
+              background: '#fff3cd',
+              borderRadius: '8px',
+              border: '1px solid #ffc107'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <span style={{ fontSize: '18px' }}>ℹ️</span>
+                <p style={{ margin: 0, fontSize: '13px', fontWeight: '600', color: '#856404' }}>
+                  No Provider Detected
+                </p>
+              </div>
+              <p style={{ margin: 0, fontSize: '12px', color: '#856404', lineHeight: '1.5' }}>
+                Navigate to a supported provider (Twitter, LinkedIn, Binance, etc.) to create snapshots.
+              </p>
+            </div>
           )}
 
           <div style={{ marginTop: '20px' }}>
-            <h2 style={{ fontSize: '14px', marginBottom: '10px' }}>Your Snapshots</h2>
-            {snapshots.length === 0 ? (
-              <p style={{ fontSize: '12px', color: '#666' }}>No snapshots yet</p>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '10px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '16px' }}>📸</span>
+                <h2 style={{ fontSize: '14px', margin: 0, fontWeight: '600' }}>Your Snapshots</h2>
+              </div>
+              {loadingSnapshots && (
+                <div style={{
+                  width: '14px',
+                  height: '14px',
+                  border: '2px solid #e9ecef',
+                  borderTopColor: '#007bff',
+                  borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite'
+                }}></div>
+              )}
+            </div>
+            {loadingSnapshots ? (
+              <div style={{ 
+                padding: '20px', 
+                textAlign: 'center',
+                color: '#666',
+                fontSize: '13px'
+              }}>
+                Loading snapshots...
+              </div>
+            ) : snapshots.length === 0 ? (
+              <div style={{
+                padding: '20px',
+                background: '#f8f9fa',
+                borderRadius: '8px',
+                textAlign: 'center'
+              }}>
+                <p style={{ fontSize: '13px', color: '#666', margin: 0 }}>
+                  No snapshots yet
+                </p>
+                <p style={{ fontSize: '11px', color: '#999', margin: '8px 0 0 0' }}>
+                  Create your first snapshot using the overlay on a provider page
+                </p>
+              </div>
             ) : (
               <ul style={{ listStyle: 'none', padding: 0 }}>
                 {snapshots.map((snapshot) => {

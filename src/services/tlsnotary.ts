@@ -189,6 +189,8 @@ export class TLSNotaryService {
       coursera: 'www.coursera.org',
       udemy: 'www.udemy.com',
       edx: 'www.edx.org',
+      uaepass: 'www.uaepass.ae',
+      instagram: 'www.instagram.com',
     };
 
     return domainMap[providerId] || null;

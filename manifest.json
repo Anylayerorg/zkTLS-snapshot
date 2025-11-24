@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AnyLayer zkTLS Snapshot",
-  "version": "1.2.0",
+  "version": "1.4.0",
   "description": "Generate privacy-preserving zkTLS snapshots from Web2 providers",
   "permissions": [
     "storage",
@@ -20,7 +20,10 @@
     "https://www.fiverr.com/*",
     "https://www.upwork.com/*",
     "https://www.youtube.com/*",
+    "https://studio.youtube.com/*",
     "https://www.tiktok.com/*",
+    "https://www.tiktok.com/tiktokstudio/*",
+    "https://www.instagram.com/*",
     "https://www.twitch.tv/*",
     "https://github.com/*",
     "https://telegram.org/*",
@@ -28,6 +31,9 @@
     "https://www.coursera.org/*",
     "https://www.udemy.com/*",
     "https://www.edx.org/*",
+    "https://uaepass.ae/*",
+    "https://www.uaepass.ae/*",
+    "https://ids.uaepass.ae/*",
     "https://us-central1-zksscore.cloudfunctions.net/*",
     "https://app.anylayer.org/*"
   ],
@@ -68,7 +74,13 @@
         "https://web.telegram.org/*",
         "https://www.coursera.org/*",
         "https://www.udemy.com/*",
-        "https://www.edx.org/*"
+        "https://www.edx.org/*",
+        "https://uaepass.ae/*",
+        "https://www.uaepass.ae/*",
+        "https://ids.uaepass.ae/*",
+        "https://www.instagram.com/*",
+        "https://studio.youtube.com/*",
+        "https://www.tiktok.com/tiktokstudio/*"
       ],
       "js": ["content/content.js"],
       "run_at": "document_idle"

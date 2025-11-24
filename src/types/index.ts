@@ -18,7 +18,9 @@ export type ProviderId =
   | 'telegram'
   | 'coursera'
   | 'udemy'
-  | 'edx';
+  | 'edx'
+  | 'uaepass'
+  | 'instagram';
 
 export type SnapshotType = 
   | 'social'
@@ -99,6 +101,12 @@ export interface EducationAttributes {
   accountAgeDays: number;
 }
 
+export interface UAEPassAttributes {
+  verified: boolean;
+  accountLevel: string;
+  accountAgeDays: number;
+}
+
 export type ProviderAttributes = 
   | TwitterAttributes
   | ExchangeAttributes
@@ -107,7 +115,8 @@ export type ProviderAttributes =
   | CreatorAttributes
   | GitHubAttributes
   | TelegramAttributes
-  | EducationAttributes;
+  | EducationAttributes
+  | UAEPassAttributes;
 
 /**
  * Local secret snapshot (encrypted, stored only in extension)

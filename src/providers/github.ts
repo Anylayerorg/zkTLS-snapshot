@@ -36,18 +36,41 @@ export class GitHubAdapter extends BaseProviderAdapter {
     try {
       return await this.executeScript<boolean>(tab.id, () => {
         // Check for GitHub session cookie
-        const hasUserSession = document.cookie.split(';').some(c => 
-          c.trim().startsWith('user_session=') || c.trim().startsWith('logged_in=')
+        const cookies = document.cookie.split(';');
+        const hasUserSession = cookies.some(c => 
+          c.trim().startsWith('user_session=') || 
+          c.trim().startsWith('logged_in=') ||
+          c.trim().startsWith('_gh_sess=')
         );
         
-        // Check for user menu in DOM
-        const hasUserMenu = document.querySelector('[data-test-selector="nav-avatar"]') !== null ||
-                           document.querySelector('.Header-link[href^="/settings"]') !== null ||
-                           document.querySelector('meta[name="user-login"]') !== null;
+        // Check for user menu in DOM (comprehensive checks like overlay)
+        const domChecks = [
+          document.querySelector('[data-test-selector="nav-avatar"]'),
+          document.querySelector('.Header-link[href^="/settings"]'),
+          document.querySelector('meta[name="user-login"]'),
+          document.querySelector('button[aria-label*="Account"]'),
+          document.querySelector('summary[aria-label*="Account"]'),
+          document.querySelector('.Header-item[href*="/settings"]'),
+          document.querySelector('[data-testid="avatar-button"]')
+        ];
+        const hasUserMenu = domChecks.some(el => el !== null);
         
-        console.log('[GitHub Adapter] Login check:', { hasUserSession, hasUserMenu });
+        // Also check for dashboard-specific elements
+        const hasDashboardElements = !!(
+          document.querySelector('[data-testid="dashboard"]') ||
+          document.querySelector('.dashboard-sidebar') ||
+          document.querySelector('nav[aria-label="User account"]')
+        );
         
-        return hasUserSession || hasUserMenu;
+        const isLoggedIn = hasUserSession || hasUserMenu || hasDashboardElements;
+        console.log('[GitHub Adapter] Login check:', { 
+          hasUserSession, 
+          hasUserMenu, 
+          hasDashboardElements,
+          isLoggedIn 
+        });
+        
+        return isLoggedIn;
       });
     } catch (error) {
       console.error('[GitHub Adapter] Error checking login status:', error);

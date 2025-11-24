@@ -19,6 +19,7 @@ import { TelegramAdapter } from './telegram';
 import { CourseraAdapter } from './coursera';
 import { UdemyAdapter } from './udemy';
 import { EdXAdapter } from './edx';
+import { UAEPassAdapter } from './uaepass';
 
 // Export providerRegistry for use in background script
 export { providerRegistry } from './base';
@@ -41,5 +42,6 @@ export function initializeProviders(): void {
   providerRegistry.register(new CourseraAdapter());
   providerRegistry.register(new UdemyAdapter());
   providerRegistry.register(new EdXAdapter());
+  providerRegistry.register(new UAEPassAdapter());
 }
 

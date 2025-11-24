@@ -23,10 +23,31 @@ export class FiverrAdapter extends BaseProviderAdapter {
     if (!tab.id) return false;
     try {
       return await this.executeScript<boolean>(tab.id, () => {
-        const authToken = document.cookie.split(';').find(c => c.trim().startsWith('fiverr_session='));
-        return !!authToken;
+        // Check cookies
+        const cookies = document.cookie.split(';');
+        const hasSessionCookie = cookies.some(c => 
+          c.trim().startsWith('fiverr_session=') || c.trim().startsWith('logged_in=')
+        );
+        
+        // Check DOM elements (same as overlay)
+        const domChecks = [
+          document.querySelector('nav [data-testid="profile-icon"]'), // Profile icon in header
+          document.querySelector('button[aria-label="User Menu"]'), // User menu
+          document.querySelector('.user-menu'), // User menu container
+          document.querySelector('[data-qa="user-menu"]'), // User menu data attribute
+          document.querySelector('a[href*="/users/"]'), // User profile link
+          document.querySelector('[data-test-id="user-menu"]'), // Alternative user menu
+          document.querySelector('.header-user-menu') // Header user menu
+        ];
+        const hasDomElement = domChecks.some(el => el !== null);
+        
+        const isLoggedIn = hasSessionCookie || hasDomElement;
+        console.log('[Fiverr Adapter] Login check:', { hasSessionCookie, hasDomElement, isLoggedIn });
+        
+        return isLoggedIn;
       });
-    } catch {
+    } catch (error) {
+      console.error('[Fiverr Adapter] Error checking login status:', error);
       return false;
     }
   }

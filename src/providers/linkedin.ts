@@ -23,25 +23,30 @@ export class LinkedInAdapter extends BaseProviderAdapter {
     if (!tab.id) return false;
     try {
       return await this.executeScript<boolean>(tab.id, () => {
-        // Check for LinkedIn auth cookies
-        const cookies = document.cookie.split(';');
-        const hasLiAt = cookies.some(c => c.trim().startsWith('li_at='));
-        const hasJSession = cookies.some(c => c.trim().startsWith('JSESSIONID='));
-        
-        // Also check for DOM elements
-        const domChecks = [
+        // Comprehensive LinkedIn detection - matching overlay checks
+        const linkedinChecks = [
           document.querySelector('[data-test-id="nav-settings__dropdown-trigger"]'),
           document.querySelector('.global-nav__me'),
           document.querySelector('.nav-item__profile-member-photo'),
+          document.querySelector('[data-control-name="identity_profile_photo"]'),
+          document.querySelector('.global-nav__primary-link-me-menu-trigger'),
           document.querySelector('#global-nav-icon'),
-          document.querySelector('img.global-nav__me-photo')
+          document.querySelector('[data-control-name="nav.settings"]'),
+          document.querySelector('.nav-item__icon'),
+          document.querySelector('img.global-nav__me-photo'),
+          // Cookie check
+          document.cookie.includes('li_at=') || document.cookie.includes('JSESSIONID=')
         ];
-        const hasDomElement = domChecks.some(el => el !== null);
+        const isLinkedInLoggedIn = linkedinChecks.some(check => check);
         
-        const isLoggedIn = hasLiAt || hasJSession || hasDomElement;
-        console.log('[LinkedIn Adapter] Login check:', { hasLiAt, hasJSession, hasDomElement, isLoggedIn });
+        console.log('[LinkedIn Adapter] Login check:', { 
+          foundElementsCount: linkedinChecks.filter(c => c && typeof c !== 'boolean').length,
+          hasCookie: document.cookie.includes('li_at=') || document.cookie.includes('JSESSIONID='),
+          isLoggedIn: isLinkedInLoggedIn,
+          url: window.location.href
+        });
         
-        return isLoggedIn;
+        return isLinkedInLoggedIn;
       });
     } catch (error) {
       console.error('[LinkedIn Adapter] Error checking login:', error);

@@ -148,8 +148,8 @@ export const PROVIDER_OVERLAY_CONFIGS: Record<ProviderId, ProviderOverlayConfig>
   },
   youtube: {
     providerName: 'YouTube',
-    requiredPage: 'Navigate to your channel page or YouTube Studio',
-    guide: 'We will capture your channel statistics including subscribers and total views from your channel page.',
+    requiredPage: 'Navigate to YouTube Studio Analytics (studio.youtube.com)',
+    guide: 'We will capture your channel statistics including subscribers and total views from YouTube Studio Analytics.',
     dataVerified: [
       'Subscriber count',
       'Total video views',
@@ -158,15 +158,15 @@ export const PROVIDER_OVERLAY_CONFIGS: Record<ProviderId, ProviderOverlayConfig>
     ],
     conditions: [
       { text: 'Logged in to YouTube' },
-      { text: 'On your channel page' },
+      { text: 'On YouTube Studio Analytics page' },
       { text: 'At least 100 subscribers' },
       { text: 'Wallet connected' }
     ]
   },
   tiktok: {
     providerName: 'TikTok',
-    requiredPage: 'Navigate to your profile page',
-    guide: 'We will capture your creator stats including followers and total views from your profile page.',
+    requiredPage: 'Navigate to TikTok Studio Analytics (tiktok.com/tiktokstudio/analytics/followers)',
+    guide: 'We will capture your creator stats including followers and total views from TikTok Studio Analytics.',
     dataVerified: [
       'Follower count',
       'Total video views',
@@ -174,7 +174,7 @@ export const PROVIDER_OVERLAY_CONFIGS: Record<ProviderId, ProviderOverlayConfig>
     ],
     conditions: [
       { text: 'Logged in to TikTok' },
-      { text: 'On your profile page' },
+      { text: 'On TikTok Studio Analytics page' },
       { text: 'At least 100 followers' },
       { text: 'Wallet connected' }
     ]
@@ -271,6 +271,39 @@ export const PROVIDER_OVERLAY_CONFIGS: Record<ProviderId, ProviderOverlayConfig>
       { text: 'Logged in to edX' },
       { text: 'On your dashboard' },
       { text: 'At least 1 course completed' },
+      { text: 'Wallet connected' }
+    ]
+  },
+  uaepass: {
+    providerName: 'UAE PASS',
+    requiredPage: 'Navigate to UAE PASS login page (ids.uaepass.ae)',
+    guide: 'We will verify your UAE PASS account verification status and account level after login.',
+    dataVerified: [
+      'Account verification status',
+      'Account level',
+      'Account age'
+    ],
+    conditions: [
+      { text: 'Logged in to UAE PASS' },
+      { text: 'On UAE PASS login or profile page' },
+      { text: 'Account is verified' },
+      { text: 'Wallet connected' }
+    ]
+  },
+  instagram: {
+    providerName: 'Instagram',
+    requiredPage: 'Navigate to your Instagram profile page',
+    guide: 'We will capture your Instagram stats including followers, posts, and account verification status.',
+    dataVerified: [
+      'Follower count',
+      'Post count',
+      'Account verification status',
+      'Account age'
+    ],
+    conditions: [
+      { text: 'Logged in to Instagram' },
+      { text: 'On your profile page' },
+      { text: 'At least 100 followers' },
       { text: 'Wallet connected' }
     ]
   }
