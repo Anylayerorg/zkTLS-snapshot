@@ -53,6 +53,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       overlay.remove();
     }
     sendResponse({ success: true });
+  } else if (message.type === 'SNAPSHOT_PROGRESS') {
+    // Forward progress updates to overlay
+    const overlay = document.getElementById('anylayer-zkTLS-overlay');
+    if (overlay) {
+      const event = new CustomEvent('snapshot-progress', {
+        detail: {
+          step: message.step,
+          message: message.message,
+          progress: message.progress,
+          error: message.error
+        }
+      });
+      overlay.dispatchEvent(event);
+    }
+    sendResponse({ success: true });
   }
   return true;
 });

@@ -167,8 +167,9 @@ async function handleStartSnapshotFromOverlay(
 
     console.log('[Background] Starting snapshot for', message.provider, 'with address', userAddress);
 
-    // Trigger snapshot creation (signature is optional - will use fallback encryption key)
-    handleCreateSnapshot(
+    // Trigger snapshot creation and wait for it to complete
+    // This ensures the snapshot is actually created before sending response
+    await handleCreateSnapshot(
       { provider: message.provider, userAddress, signature: undefined },
       sendResponse
     );
@@ -179,10 +180,29 @@ async function handleStartSnapshotFromOverlay(
   }
 }
 
+/**
+ * Send progress update to overlay
+ */
+async function sendProgressUpdate(tabId: number, step: string, message: string, progress?: number) {
+  try {
+    await chrome.tabs.sendMessage(tabId, {
+      type: 'SNAPSHOT_PROGRESS',
+      step,
+      message,
+      progress
+    });
+  } catch (error) {
+    // Tab might have closed or content script not ready - ignore
+    console.warn('[Background] Failed to send progress update:', error);
+  }
+}
+
 async function handleCreateSnapshot(
   message: { provider: string; userAddress: string; signature?: string },
   sendResponse: (response: any) => void
 ) {
+  let tabId: number | null = null;
+  
   try {
     const { provider, userAddress, signature } = message;
     const adapter = providerRegistry.get(provider as any);
@@ -198,35 +218,43 @@ async function handleCreateSnapshot(
       sendResponse({ success: false, error: 'No active tab found' });
       return;
     }
+    tabId = tab.id;
 
     // Check if logged in
+    await sendProgressUpdate(tabId, 'checking_login', 'Checking login status...', 5);
     const isLoggedIn = await adapter.isLoggedIn(tab);
     if (!isLoggedIn) {
+      await sendProgressUpdate(tabId, 'error', 'Not logged in to provider', 0);
       sendResponse({ success: false, error: 'Not logged in to provider' });
       return;
     }
 
     // Fetch attributes using TLSNotary (preferred method)
+    await sendProgressUpdate(tabId, 'starting_tls', 'Starting TLS session...', 10);
     let attrs;
     let tlsNotaryProof = null;
     
     try {
       // Try TLSNotary method first (if adapter supports it)
       if (typeof (adapter as any).fetchAttributesWithTLSNotary === 'function') {
+        await sendProgressUpdate(tabId, 'gathering_data', 'Gathering data via TLS...', 20);
         attrs = await (adapter as any).fetchAttributesWithTLSNotary(tab);
         // Capture TLS proof for later use
         tlsNotaryProof = await (adapter as any).captureTLSProof(tab);
       } else {
+        await sendProgressUpdate(tabId, 'gathering_data', 'Gathering data from page...', 20);
         // Fallback to DOM scraping
         attrs = await adapter.fetchAttributes(tab);
       }
     } catch (error) {
       console.error('[Background] TLSNotary capture failed, falling back to DOM:', error);
+      await sendProgressUpdate(tabId, 'gathering_data', 'Gathering data from page...', 20);
       // Fallback to DOM scraping
       attrs = await adapter.fetchAttributes(tab);
     }
 
     // Generate commitment
+    await sendProgressUpdate(tabId, 'generating_commitment', 'Generating commitment...', 40);
     const randomness = generateRandomness();
     const commitment = await generateCommitment(attrs, randomness);
     
@@ -234,6 +262,7 @@ async function handleCreateSnapshot(
     let initialProofHash: string | undefined;
     if (tlsNotaryProof) {
       try {
+        await sendProgressUpdate(tabId, 'generating_proof', 'Generating ZK proof...', 50);
         const zkTLSProof = await generateZkTLSProof(
           tlsNotaryProof,
           adapter.id,
@@ -250,6 +279,7 @@ async function handleCreateSnapshot(
     }
 
     // Create snapshot secret
+    await sendProgressUpdate(tabId, 'encrypting_data', 'Encrypting data...', 60);
     const snapshotId = generateSnapshotId();
     const now = Date.now();
     const expiresAt = now + adapter.getDefaultExpiry();
@@ -287,9 +317,11 @@ async function handleCreateSnapshot(
     setEncryptionKey(encryptionKey);
 
     // Store encrypted snapshot locally
+    await sendProgressUpdate(tabId, 'saving_locally', 'Saving data locally...', 70);
     await storeSnapshot(snapshotSecret, encryptionKey);
 
     // Compute human scores locally (privacy-preserving - no raw metrics sent to backend)
+    await sendProgressUpdate(tabId, 'calculating_score', 'Calculating trust score...', 80);
     const localAttributes: ProviderAttributes = {};
     if (adapter.id === 'twitter') {
       const twitterAttrs = attrs as any;
@@ -316,6 +348,7 @@ async function handleCreateSnapshot(
     const localScoreResult = computeHumanScoreLocal(adapter.id, localAttributes);
 
     // Send to backend (only computed scores, NOT raw metrics)
+    await sendProgressUpdate(tabId, 'uploading_backend', 'Uploading to backend...', 90);
     console.log('[Background] Sending snapshot to backend:', {
       provider: adapter.id,
       snapshotType: adapter.getSnapshotType(),
@@ -350,6 +383,9 @@ async function handleCreateSnapshot(
         error: backendResponse.error,
         userAddress
       });
+      if (tabId) {
+        await sendProgressUpdate(tabId, 'error', backendResponse.error || 'Backend upload failed', 0);
+      }
       sendResponse({ success: false, error: backendResponse.error });
       return;
     }
@@ -359,15 +395,24 @@ async function handleCreateSnapshot(
       provider: adapter.id
     });
 
+    // Send completion message
+    if (tabId) {
+      await sendProgressUpdate(tabId, 'completed', 'Snapshot created successfully!', 100);
+    }
+
     sendResponse({
       success: true,
-      snapshotId,
+      snapshotId: backendResponse.snapshotId || snapshotId,
       commitment
     });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (tabId) {
+      await sendProgressUpdate(tabId, 'error', errorMessage, 0);
+    }
     sendResponse({
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: errorMessage
     });
   }
 }

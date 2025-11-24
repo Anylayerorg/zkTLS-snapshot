@@ -957,12 +957,105 @@ export function createProviderOverlay(providerId?: ProviderId) {
     overlayTimestamp: Date.now()
   });
 
+  // Create progress display element
+  const progressDiv = document.createElement('div');
+  progressDiv.id = 'anylayer-progress';
+  progressDiv.style.display = 'none';
+  progressDiv.style.marginTop = '12px';
+  progressDiv.style.padding = '12px';
+  progressDiv.style.background = '#f5f5f5';
+  progressDiv.style.borderRadius = '8px';
+  progressDiv.style.fontSize = '13px';
+  progressDiv.style.color = '#333';
+  
+  const progressSteps = document.createElement('div');
+  progressSteps.id = 'anylayer-progress-steps';
+  progressSteps.style.display = 'flex';
+  progressSteps.style.flexDirection = 'column';
+  progressSteps.style.gap = '8px';
+  progressDiv.appendChild(progressSteps);
+  
+  // Insert progress div after status div
+  statusDiv.parentNode?.insertBefore(progressDiv, statusDiv.nextSibling);
+
+  // Listen for progress updates
+  overlay.addEventListener('snapshot-progress', ((e: CustomEvent) => {
+    const { step, message: progressMessage, progress, error } = e.detail;
+    
+    if (error) {
+      statusDiv.style.background = '#ffebee';
+      statusDiv.style.color = '#c62828';
+      statusDiv.textContent = `❌ ${error}`;
+      progressDiv.style.display = 'none';
+      startBtn.disabled = false;
+      startBtn.textContent = isLoggedIn ? 'Take Snapshot' : `Log in to ${providerName}`;
+      startBtn.style.opacity = '1';
+      startBtn.style.cursor = 'pointer';
+      return;
+    }
+    
+    // Show progress
+    progressDiv.style.display = 'block';
+    statusDiv.style.display = 'block';
+    statusDiv.style.background = '#e3f2fd';
+    statusDiv.style.color = '#1976d2';
+    statusDiv.textContent = `⏳ ${progressMessage || step}`;
+    
+    // Update progress steps
+    const existingStep = progressSteps.querySelector(`[data-step="${step}"]`);
+    if (!existingStep) {
+      const stepDiv = document.createElement('div');
+      stepDiv.setAttribute('data-step', step);
+      stepDiv.style.display = 'flex';
+      stepDiv.style.alignItems = 'center';
+      stepDiv.style.gap = '8px';
+      stepDiv.style.padding = '4px 0';
+      
+      const checkmark = document.createElement('span');
+      checkmark.textContent = '⏳';
+      checkmark.style.fontSize = '14px';
+      
+      const stepText = document.createElement('span');
+      stepText.textContent = progressMessage || step;
+      stepText.style.flex = '1';
+      
+      stepDiv.appendChild(checkmark);
+      stepDiv.appendChild(stepText);
+      progressSteps.appendChild(stepDiv);
+    } else {
+      // Update existing step
+      const checkmark = existingStep.querySelector('span:first-child');
+      const stepText = existingStep.querySelector('span:last-child');
+      if (checkmark) checkmark.textContent = '✅';
+      if (stepText) stepText.textContent = progressMessage || step;
+    }
+    
+    // If completed, show success
+    if (step === 'completed' || progress === 100) {
+      statusDiv.style.background = '#e8f5e9';
+      statusDiv.style.color = '#2e7d32';
+      statusDiv.textContent = '✅ Snapshot created successfully!';
+      startBtn.textContent = 'Completed';
+      startBtn.disabled = true;
+      
+      // Mark all steps as completed
+      progressSteps.querySelectorAll('[data-step]').forEach(stepEl => {
+        const checkmark = stepEl.querySelector('span:first-child');
+        if (checkmark) checkmark.textContent = '✅';
+      });
+    }
+  }) as EventListener);
+
   // Handle Start button click
   startBtn.addEventListener('click', async () => {
     startBtn.disabled = true;
     startBtn.textContent = 'Starting...';
     startBtn.style.opacity = '0.6';
     startBtn.style.cursor = 'not-allowed';
+
+    // Clear previous progress
+    progressSteps.innerHTML = '';
+    progressDiv.style.display = 'none';
 
     // Show status
     statusDiv.style.display = 'block';
@@ -982,11 +1075,8 @@ export function createProviderOverlay(providerId?: ProviderId) {
       }
 
       if (response.success) {
-        statusDiv.style.background = '#e8f5e9';
-        statusDiv.style.color = '#2e7d32';
-        statusDiv.textContent = '✅ Verification started! Check extension popup for progress.';
-        startBtn.textContent = 'Started';
-        startBtn.disabled = true;
+        // Progress will be updated via snapshot-progress events
+        // Don't show "check popup" message anymore
       } else {
         const errorMsg = response.error || 'Failed to start verification';
         // Provide more helpful error messages
@@ -1005,6 +1095,7 @@ export function createProviderOverlay(providerId?: ProviderId) {
       statusDiv.style.color = '#c62828';
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       statusDiv.textContent = `❌ ${errorMessage}`;
+      progressDiv.style.display = 'none';
       startBtn.disabled = false;
       startBtn.textContent = isLoggedIn ? 'Take Snapshot' : `Log in to ${providerName}`;
       startBtn.style.opacity = '1';
